@@ -1,0 +1,371 @@
+%% run regression for all patients and all drugs
+close all;clear;
+addpath('/Volumes/borel.seas.upenn.edu/public/USERS/nghosn3/Pioneer/DATA');
+addpath('/Volumes/borel.seas.upenn.edu/public/USERS/nghosn3/Pioneer/spikes-AED/aed_dose_modeling')
+cd('/Volumes/borel.seas.upenn.edu/public/USERS/nghosn3/Pioneer/spikes-AED');
+
+% Get which patients
+cohort_info = readtable('HUP_implant_dates.xlsx');
+ptIDs = cohort_info.ptID;
+weights = cohort_info.weight_kg;
+
+% use only tapered patients? n=70
+tapered = 0;
+
+% get AED curves
+load('MAR_032122.mat')
+
+if tapered
+    [tapered_pts,all_taper_info] = get_tapered_patients(ptIDs,all_meds);
+    ptIDs = ptIDs(logical(tapered_pts));
+     weights = weights(logical(tapered_pts));
+end 
+
+% using the AED BPL model
+[all_dose_curves,all_tHr,ptIDs,all_med_names,ieeg_offset,max_dur,emu_dur] = get_aed_curve_kg(ptIDs,weights,0); % ue min dose to normalize dose 
+
+% using only interpolation dosage
+%[all_dose_curves,all_tHr,all_med_names,ieeg_offset,emu_dur] = get_dose_schedules(ptIDs);
+
+%%
+exclude_ativan=0;
+rm_clusters =0;
+
+medications = vertcat(all_med_names{:});
+all_medications = unique(medications);
+if exclude_ativan
+    ativan_ind = contains(all_medications,'lorazepam');
+    all_medications(ativan_ind)=[];
+end
+
+% make matrix with all variables (levels for each drug)
+num_feats=length(all_medications)+3; % (time since last seizure, ptID, seizure bin)
+sz=num_feats;
+features = cell(num_feats,length(ptIDs));
+winLen =60; %minutes
+
+for i=1:length(ptIDs) % exclude HUP136
+    ptID = ['HUP' num2str(ptIDs(i))];
+    % for grabbing seizure times
+    offsets = ieeg_offset{2,i};
+    ieeg_offset_datasets = ieeg_offset{1,i};
+    
+    med_names = all_med_names{i};
+    pt_curves = all_dose_curves{i};
+    tHr=all_tHr{i};
+    
+    % exclude ativan in drug sum
+    if exclude_ativan
+        ativan_ind = contains(med_names,'lorazepam'); %#ok<*UNRCH>
+        med_names(ativan_ind)=[];
+        pt_curves(ativan_ind)=[];
+        tHr(ativan_ind)=[];
+    end
+    
+    % align drugs on same time scale
+    end_times = cellfun(@(x)x(end),tHr);
+    curve_lens = cellfun(@length,pt_curves);
+    max_time = max(end_times);
+    drugs =nan(length(med_names),ceil(max_time*60));
+    for n =1:length(med_names)
+        drug=pt_curves{n};
+        drug=drug./nanmax(drug); %normalize drug curve
+        if ~isempty(drug)
+            dStart = round(tHr{n}(1)*60)-1;
+            drugs(n,dStart+1:dStart+length(drug))=drug;
+        end
+    end
+    
+    % get binned drug values
+    nbins=ceil(length(drugs)./winLen);
+    drug_wins = nan(1,nbins);
+    
+    for r = 1:length(med_names)
+        ind =1;
+        for c = 1:winLen:length(drugs)-winLen
+            drug_wins(r,ind)=nanmean(drugs(r,c:c+winLen)); %creates leading zeros
+            ind=ind+1;
+        end
+    end
+    
+    for n=1:length(med_names)
+        ind = contains(all_medications,med_names{n});
+        features(ind,i)={drug_wins(n,:)};
+    end
+    
+    empty_inds =cellfun(@isempty,features(:,i));
+    features(empty_inds,i)={zeros(1,nbins)};
+    features(end-1,i)={i*ones(1,nbins)}; %ptID
+    
+    [seizure_times] = convert_sz_to_emu_time(offsets,ieeg_offset_datasets,ptID); % seizure times in hours of EMU stay
+    
+    % remove clustered seizures - more than 4hrs apart
+    if rm_clusters
+        lead_sz = [true; diff(seizure_times(:,1))> 4];
+        seizure_times = seizure_times(lead_sz,:);
+    end
+    
+    clustered_sz = [false; diff(seizure_times(:,1))< 4];
+    
+    % adjust seizure times to winLen minute bins
+    seizure_times = seizure_times*60./winLen;
+    seizure_times(seizure_times(:,1)>(max_time*60./winLen),:)=[]; %this is for you, HUP175!
+    
+    % shift seizure bins left so 1 = seizure in next time bin
+    sz_bins = zeros(1,nbins+1);
+    sz_inds = round(seizure_times(:,1));
+    sz_bins(sz_inds) =1;
+    sz_bins(1)=[];
+    
+    features(sz,i)={sz_bins};
+    
+    % add time since last seizure feature
+    t_last_seizure = nan(1,nbins);
+    seizure_inds = unique(round(seizure_times(:,1)));
+    start = seizure_inds(1);
+    ind=1;
+    for j=start:seizure_inds(end)
+        if ind<length(seizure_inds)
+            if j>=seizure_inds(ind) && j < seizure_inds(ind+1)
+                t_last_seizure(j)=j-seizure_inds(ind);
+                 
+            else
+                ind=ind+1;
+                t_last_seizure(j)=j-seizure_inds(ind);
+            end
+        end
+    end
+    t_last_seizure(j+1:end) = (j+1:length(t_last_seizure))-seizure_inds(end);
+    features(end-2,i)={t_last_seizure};
+    
+    if rm_clusters
+        cluster_inds = unique(sz_inds(clustered_sz));
+        for f=1:height(features)
+            for j = cluster_inds
+                features{f,i}(j)=NaN;
+            end
+        end
+    end 
+    
+end
+
+
+all_medications(contains(all_medications,'valproic acid'))={'valproic_acid'};
+
+% get the medication counts, exclude the meds with less than 5 subjects - exclude subjects with none of the used meds
+med_counts=cell(1,length(all_medications));
+for n =1:length(all_medications)
+    med_counts{n}=sum(contains(medications,all_medications{n}));
+end
+med_info = [all_medications med_counts'];
+exclude_meds = [med_counts{:}]<5;
+top_meds=all_medications(~exclude_meds);
+med_feats=features;
+med_feats(exclude_meds,:)=[];
+
+
+% run logistic regression
+features = med_feats; %[all_feats; all_pt_bins; all_sz_bins];
+feat_names = [top_meds;{'t_last_seizure'}; {'ptID'}; {'seizure'}];
+drug_table = table();
+for i =1:length(feat_names)
+    feat_name = feat_names{i};
+    this_feat = features(i,:);
+    this_feat = horzcat(this_feat{:})';
+    drug_table.(feat_name)=this_feat;
+end
+drug_table.ptID = categorical(drug_table.ptID);
+%drug_table.seizure = categorical(drug_table.seizure);
+
+
+iter=10;
+pts = length(ptIDs);
+
+AUCs_model = zeros(1,iter);
+xROCs_model = cell(iter,1);
+yROCs_model = cell(iter,1);
+
+OPs_1_model = nan(iter,1);
+OPs_05_model = nan(iter,1);
+
+pt_inds_master = cell(1,iter);
+for i = 1:iter
+   pt_inds_master{i} = randperm(pts);
+end
+
+for i = 1:iter
+    pt_inds = pt_inds_master{i};
+    split=floor(.7*pts);
+    train_inds = pt_inds(1:split);
+    test_inds = pt_inds(split+1:end);
+    
+    test_pts = cellstr(strsplit(num2str(test_inds)));
+    train_pts =  cellstr(strsplit(num2str(train_inds)));
+    
+    all_feats_test = [];
+    for j = 1:length(test_pts)
+        all_feats_test = [all_feats_test; drug_table(contains(cellstr(drug_table.ptID),test_pts(j)),:)];
+    end
+    feats_test = all_feats_test(:,1:end-1);
+    labels_test = all_feats_test.seizure;
+    
+    feats_train = [];
+    for j = 1:length(train_pts)
+        feats_train = [feats_train; drug_table(contains(cellstr(drug_table.ptID),train_pts(j)),:)];
+    end
+    
+    fixed_effects=[];
+    for n=1:length(feat_names)-2 % do not include seizure or ptID, the response variable
+        name =feat_names{n};
+        fixed_effects = [fixed_effects ' + ' name];
+    end
+    
+    random_effects = ' + (1 | ptID)';
+    modelspec = ['seizure ~ 1 ' fixed_effects random_effects];
+    tbl = feats_train(:,:);
+    try
+        mdl = fitglme(tbl,modelspec,'Distribution','binomial');
+        
+        tbl = feats_test(:,:);
+        sz_pred = predict(mdl,feats_test);
+        
+        intervals= linspace(0, 1, 1000);
+        [Xroc, Yroc, ~, AUCs_model(i)]= perfcurve(labels_test,sz_pred,1,'Xvals',intervals);
+        
+        xROCs_model{i} = Xroc;
+        yROCs_model{i} = Yroc;
+        
+        [~,ind]=min(abs(Xroc-.1));
+        OPs_1_model(i) = Yroc(ind);
+        
+        [~,ind]=min(abs(Xroc-.05));
+        OPs_05_model(i)= Yroc(ind);
+        
+        plot(Xroc, Yroc, 'LineWidth', 1); hold on;
+        
+        %for getting an average of the ROC curves from each fold
+                x_adj= adjust_unique_points(Xroc); %interp1 requires unique points
+                if i==1 %if is the first fold
+                    mean_curve= (interp1(x_adj, Yroc, intervals))/iter;
+                else
+                    mean_curve= mean_curve+ (interp1(x_adj, Yroc, intervals))/iter;
+                end
+    catch
+    end
+    
+end
+mean_curve_model = mean_curve;
+% average the curves and plot
+plot(intervals, mean_curve, 'Color', 'Black', 'LineWidth', 3.0);
+axis square; title(['All pts, all AEDs: AUC= ' num2str(mean(AUCs_model))])
+ylabel('TPR'); xlabel('FPR'); xlim([0 1]); hold off;
+
+% run null model
+
+AUCs = zeros(1,iter);
+xROCs = cell(iter,1);
+yROCs = cell(iter,1);
+
+OPs_1 = nan(iter,1);
+OPs_05 = nan(iter,1);
+
+
+
+figure;
+for i = 1:iter
+    pt_inds = pt_inds_master{i};
+    split=floor(.7*pts);
+    train_inds = pt_inds(1:split);
+    test_inds = pt_inds(split+1:end);
+    
+    test_pts = cellstr(strsplit(num2str(test_inds)));
+    train_pts =  cellstr(strsplit(num2str(train_inds)));
+    
+    all_feats_test = [];
+    for j = 1:length(test_pts)
+        all_feats_test = [all_feats_test; drug_table(contains(cellstr(drug_table.ptID),test_pts(j)),:)];
+    end
+    % null model only 
+    feats_test = all_feats_test(:,end-2:end-1); % time since last seizure
+    labels_test = all_feats_test.seizure;
+    
+    feats_train = [];
+    for j = 1:length(train_pts)
+        feats_train = [feats_train; drug_table(contains(cellstr(drug_table.ptID),train_pts(j)),:)];
+    end
+    % null model only
+    feats_train = feats_train(:,end-2:end); % time since last seizure, ptID, and seizure bin
+    
+    modelspec = 'seizure ~ 1 + t_last_seizure + ( 1 | ptID )';
+    tbl = feats_train(:,:);
+    tbl(isnan(tbl.t_last_seizure),:)=[];
+    mdl = fitglme(tbl,modelspec,'Distribution','binomial');
+    
+    tbl = feats_test(:,:);
+    sz_pred = predict(mdl,tbl);
+    
+    intervals= linspace(0, 1, 4000);
+    [Xroc, Yroc, ~, AUCs(i)]= perfcurve(labels_test,sz_pred,1,'Xvals',intervals);
+    plot(Xroc, Yroc, 'LineWidth', 1); hold on;
+    
+    xROCs{i} = Xroc;
+    yROCs{i} = Yroc;
+    
+    
+    [~,ind]=min(abs(Xroc-.1));
+    OPs_1(i) = Yroc(ind);
+    
+    [~,ind]=min(abs(Xroc-.05));
+    OPs_05(i)= Yroc(ind);
+    
+  
+    %for getting an average of the ROC curves from each fold
+    x_adj= adjust_unique_points(Xroc); %interp1 requires unique points
+    if i==1 %if is the first fold
+        mean_curve= (interp1(x_adj, Yroc, intervals))/iter;
+    else
+        mean_curve= mean_curve+ (interp1(x_adj, Yroc, intervals))/iter;
+        %[ i sum(isnan(mean_curve))]
+    end
+    
+    
+    
+end
+plot(intervals, mean_curve, 'Color', 'Black', 'LineWidth', 3.0);
+axis square; title(['All pts, null model with time since last seizure: AUC= ' num2str(mean(AUCs))])
+ylabel('TPR'); xlabel('FPR'); xlim([0 1]); hold off;
+
+
+% do bootstrap ci and p value
+addpath('/Volumes/borel.seas.upenn.edu/public/USERS/nghosn3/Pioneer/spikes-AED/aed_dose_modeling/figures_code')
+out = bootstrap_ci_and_p(AUCs,AUCs_model);
+out_op1 = bootstrap_ci_and_p(OPs_1_model,OPs_1);
+out_op05 = bootstrap_ci_and_p(OPs_05_model,OPs_05);
+
+
+figure;
+plot(linspace(0,1,length(mean_curve)),mean_curve,'linewidth',2);
+hold on; 
+plot(linspace(0,1,length(mean_curve_model)),mean_curve_model,'linewidth',2);
+plot(linspace(0,1),linspace(0,1),'linewidth',2);
+xlabel('FPR'); ylabel('TPR')
+legend('null model','AED + null model','chance')
+
+
+% figure(2)
+% edges = .95:.0005:1;
+% histogram(sz_preds(:,2),'Normalization','probability','BinEdges',edges); hold on;
+% histogram(nonsz_preds(:,2),'Normalization','probability','BinEdges',edges); hold on;
+% legend('seizure','non-seizure')
+% ylim([0 .2])
+function x= adjust_unique_points(Xroc)
+x= zeros(1, length(Xroc));
+aux= 0.0001;
+for i=1: length(Xroc)
+    if i~=1
+        x(i)= Xroc(i)+aux;
+        aux= aux+0.00001;
+    end
+    
+end
+end

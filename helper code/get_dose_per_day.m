@@ -1,0 +1,38 @@
+%% Function to determine dose per day of each ASM drug taken in the EMU
+
+%%
+function [out] = get_dose_per_day(meds, med_names)
+
+out = table();
+emu_start = meds.date(1);
+num_emu_days = ceil(days(meds.date(end)-meds.date(1)));
+
+for n = 1:length(med_names)
+    
+    if ~contains(med_names{n},'lorazepam') % exclude ativan
+        
+        %find the specific medication
+        med_name_ind = contains(med_names,med_names{n}); % which med
+        this_med_info = meds(contains(meds.medication,med_names(med_name_ind)),:); % get info of just that med
+        
+        
+        if days(this_med_info.date(end)-this_med_info.date(1)) >0
+            
+            x = days(this_med_info.date-emu_start);
+            x=ceil(x); x(x==0)=1;
+            this_med_info.day = x;
+            y = this_med_info.dose;
+            dose_per_day=zeros(1,num_emu_days);
+            for i=1:height(this_med_info)
+                day = this_med_info.day(i);
+                dose_per_day(day)=sum(y(x==day));
+            end
+            
+            out.dose_schedule(n) = {dose_per_day};
+            out.days(n) = {1:num_emu_days};
+            out.med_name(n) = med_names(n);
+            
+            
+        end
+    end
+end

@@ -1,0 +1,119 @@
+close all;clear;
+
+% addpath('/mnt/leif/littlab/users/nghosn3/Pioneer/spikes-AED/aed_dose_modeling/figures_code')
+% addpath('/mnt/leif/littlab/users/nghosn3/Pioneer/DATA');
+% addpath('/mnt/leif/littlab/users/nghosn3/Pioneer/spikes-AED/aed_dose_modeling')
+ addpath('/Volumes/users/nghosn3/Pioneer/spikes-AED/aed_dose_modeling/figures_code')
+ addpath('/Volumes/users/nghosn3/Pioneer/DATA');
+ addpath('/Volumes/users/nghosn3/Pioneer/spikes-AED/aed_dose_modeling')
+
+
+% Get which patients
+%cohort_info = readtable('MedGivenCommonMRNs_DI.csv');
+cohort_info = readtable('bella_pts_meds.csv');
+ptIDs =unique(cohort_info.Record_ID);
+
+% find the HUP ID, if exists
+add_hupid = 0;
+if add_hupid
+    hupids = nan(length(ptIDs),1);
+    for i=0:ptIDs(end)
+        hup_ind = find(i==cohort_info.ptID);
+        if ~isempty(hup_ind)
+            hupids(i+1) = cohort_info.HUP_ID(hup_ind(1));
+        else
+            hupids(i+1) = NaN;
+        end
+
+    end
+end
+
+% check which patients are common
+cohort_info_asm = readtable('HUP_implant_dates.xlsx');
+ptIDs_asm = cohort_info_asm.ptID;
+
+% all_hups_both_datasets = num2cell(unique([ptIDs_asm; all_hupids])); % 134 HUP patients total now
+% 
+% % check which HUP patients also have seizure times 
+% all_sz_data = readtable('manual_validation.xlsx','Sheet','AllSeizureTimes');
+% func = @(x) x(4:end);
+% all_sz_data.hupid = str2double(cellfun(func,all_sz_data.Patient,'UniformOutput',false));
+% hupids_with_sz = unique(all_sz_data.hupid(~isnan(all_sz_data.hupid)));
+% 
+% func2 = @(x) ismember(x,hupids_with_sz); 
+% hupids_meds_sz = all_hups_both_datasets(cellfun(func2,all_hups_both_datasets));
+% hupids_meds_sz=[hupids_meds_sz{:}]'; % hups with medication data and sz times from erin
+% 
+%test with random weights 
+weights = ones(1,length(ptIDs))*70; % assume weight for all is 70kg
+
+% test hup
+% ptIDs = ptIDs(hupids ==138);
+% weights =weights(1);
+
+[all_dose_curves,all_Hr,ptIDs,all_med_names,ieeg_offset] = get_aed_curve_nlp(ptIDs,weights); % data from nlp - edit to check for hups and sz times 
+
+%%
+% get subplot dims
+% n = 2;
+% m = ceil(length(ptIDs)./n);
+
+for ipt = 1:length(ptIDs)
+    % patient medication administration
+    ptID = ['HUP' num2str(ptIDs(ipt))];
+%     offsets = ieeg_offset{2,ipt};
+%     ieeg_offset_datasets = ieeg_offset{1,ipt};
+%     
+    % plot dose curve
+    % subplot(m,n,ipt)
+    figure('Position', [10 10 900 300])
+    %plot(0,0);
+    h=zeros(1,length(all_med_names{ipt}));
+    med_colors = lines(length(all_med_names{ipt}));
+    for i=1:length(all_med_names{ipt})
+        curve=all_dose_curves{ipt}{i};
+        if ~isempty(curve)
+            h(i)=plot(all_Hr{ipt}{i},curve./max(curve),'LineWidth',2,'Color',[med_colors(i,:) .5]);hold on;
+            %h(i)=plot(all_Hr{ipt}{i},curve./max(curve));hold on; %normalized to [0 1]
+        else
+            all_med_names{ipt}(i)=[];
+            h(i)=NaN;
+        end
+    end
+    h(isnan(h))=[];
+    % plot the seizures -- in ieeg times
+%     
+%     %get seizure times
+%     [seizure_times,seizure_dataset] = get_seizure_times_from_sheet(ptID);
+%     if ~isempty(offsets)
+%         for j =1:height(seizure_times)
+%             % check which dataset the seizure is from, and add appropriate offset
+%             if isequal(seizure_dataset{j},'D01') || isequal(seizure_dataset{j},'one file')
+%                 seizure_times(j,1)= (offsets(1)+(seizure_times(j,1)))./3600;
+%             else
+%                 %ind = str2double(seizure_dataset{j}(end));
+%                 ind = contains(ieeg_offset_datasets,['D0' seizure_dataset{j}(end)]);
+%                 dataset_offset = offsets(ind);
+%                 seizure_times(j,1)= (seizure_times(j,1) + dataset_offset)./3600; %convert to hours
+%             end
+%             xline(seizure_times(j,1),'--r','linewidth',2);hold on;
+%         end
+%     end
+%     % convert seizure times to indices, so to minutes
+%     seizure_inds = round(seizure_times(:,1) *60);
+%     
+    ylabel('AED BPL (normalized)');xlabel('time (Hr)')
+    %xlim([0 time(end)]);
+%     if ~isempty(seizure_times)
+%         legend(h(:),all_med_names{ipt}');
+%     else
+%         legend(all_med_names{ipt}');
+%     end
+    legend(all_med_names{ipt}');
+    title(ptID);
+    
+%      save_path='/Users/ninaghosn/Documents/Litt_Lab/projects/Pioneer/AED-taper-networks/updates_progress/12-13-22';
+%      print([save_path 'all_drugs_HUP',num2str(ptIDs(ipt)),'.eps'],'-depsc2','-painters', '-tiff', '-r300', '-f')
+end
+
+

@@ -1,0 +1,77 @@
+close all;clear;
+cd('/Volumes/borel.seas.upenn.edu/public/USERS/nghosn3/Pioneer/spikes-AED');
+addpath('/Volumes/borel.seas.upenn.edu/public/USERS/nghosn3/Pioneer/DATA');
+addpath('/Volumes/borel.seas.upenn.edu/public/USERS/nghosn3/Pioneer/spikes-AED/aed_dose_modeling')
+% Get which patients
+cohort_info = readtable('HUP_implant_dates.xlsx');
+ptIDs = cohort_info.ptID;
+% load all med data
+load('MAR_030122.mat');
+
+%warning('off','last')
+ptIDs=209;
+
+ [all_dose_curves,all_tHr,ptIDs,all_med_names,all_ieeg_offset,max_dur,emu_dur] = get_aed_curve_v3(ptIDs);
+
+%%
+
+%plot only tapered meds?
+tapered = 0;
+
+figure(1);
+%get subplot dims
+m = 1;
+n = ceil(length(ptIDs)./m);
+
+for ipt = 1:length(ptIDs)
+    ptID = ['HUP' num2str(ptIDs(ipt))];
+    %[~,med_names,~,meds] = get_med_info_master(ptID);
+    [med_names,meds] = parse_MAR(ptID,all_meds);
+    %only use tapered drugs to get drug sum:
+    if tapered == 1
+        tapered_drugs = get_taper_info(meds, med_names);
+        med_names = {tapered_drugs.med_name};
+    end 
+    
+    offsets = all_ieeg_offset{2,ipt};
+    
+    % get the total AED dose over time
+    dur=round(max([emu_dur max_dur]));
+    drugs =zeros(length(med_names),dur*60); %400 hours of EMU stay in minutes
+    for i =1:length(med_names)
+        
+        drug=all_dose_curves{ipt}{i};
+        drug=drug./nanmax(drug); %normalize each drug curve
+        if ~isempty(drug)
+            dStart = round(all_tHr{ipt}{i}(1)*60)-1;
+            drugs(i,dStart+1:dStart+length(drug))=drug;
+        end
+    end
+    drug_sum=nansum(drugs,1)./length(med_names);
+  
+    subplot(n,m,ipt)
+    plot(linspace(1,dur,dur*60),drug_sum); title([ptID ' :Total AED load (normalized)'])
+    hold on;
+    
+    xline(emu_dur(ipt),'-b','linewidth',1)
+    %plot the seizure times with it
+    [seizure_times,seizure_dataset] = get_seizure_times_from_sheet(ptID);
+    for j =1:length(seizure_times)
+        % check which dataset the seizure is from, and add appropriate offset
+        if (isequal(seizure_dataset{j},'D01') || isequal(seizure_dataset{j},'one file'))
+            dataset_offset = offsets(1);
+            seizure_times(j,1)= (seizure_times(j,1) + dataset_offset); %convert to hours
+        else
+            ind = str2double(seizure_dataset{j}(end));
+            dataset_offset = offsets(ind);
+            %dataset_offset = seconds(diff(ieeg_offset{3}));
+            seizure_times(j,1)= (seizure_times(j,1) + dataset_offset); %convert to hours
+        end 
+        seizure_times(j,:) = seizure_times(j,:)./3600;
+        xline(seizure_times(j,1),'--r','linewidth',1);hold on;
+    end
+end
+
+%plot sleep wake mask?
+
+
