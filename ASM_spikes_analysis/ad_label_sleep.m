@@ -6,10 +6,10 @@ sleep_times = cell(1,length(ptIDs));
 
 for x = 1:length(ptIDs)
     
-    ptID = ptIDs{x};
+    ptID = ptIDs(x);
     %load the spike data
     addpath('/Volumes/users/erinconr/projects/fc_toolbox/results/analysis/intermediate/');
-    fname = [ptID '.mat'];
+    fname = ['HUP' num2str(ptID) '.mat'];
     try
         load(fname);
         % get ad and labels from the structure
@@ -39,6 +39,6 @@ for x = 1:length(ptIDs)
         % wake = norm_ad > disc;
         
     catch
-        ptIDs{x}=[];
+        ptIDs(x)=[];
     end
 end
