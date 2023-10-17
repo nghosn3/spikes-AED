@@ -82,6 +82,7 @@ for ipt = 1:length(ptIDs)
 
         % Plot the PLV values over time
         plot(time_vector, plv_over_time);
+        hol
         xlabel('Time (ms)');
         ylabel('PLV');
         title('Phase Locking Value Over Time');
@@ -116,12 +117,12 @@ end
 figure;
 tiledlayout('flow');
 for ipt = 1:length(all_plv)
-    
+    if ~isempty(all_plv{ipt})
         nexttile;
-        plot(sum(all_pts_drug_samp{ipt}),all_spike_rate{ipt},'.','markersize',10);
+        plot(all_asm_plv{ipt},all_spikes_plv{ipt},'.','markersize',10);
         title(['HUP' num2str(ptIDs(ipt))])
-        [r,p] = corr(sum(all_pts_drug_samp{ipt})',all_spike_rate{ipt}');
+        [r,p] = corr(all_asm_plv{ipt}',all_spikes_plv{ipt}');
         legend(['R = ' num2str(r) ', p = ' num2str(p)],'Location', 'southoutside')
         
-
+    end 
 end 

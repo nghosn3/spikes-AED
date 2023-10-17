@@ -332,159 +332,46 @@ end
 ativan_inds = contains(tbl.med_name,'lorazepam');
 tbl(ativan_inds,:) = [];
 
-%% look at the peaki-ness of the peaks -p, prominance, w, width
-% p/w ratio: the bigger it is, the peakier the peak
+%% compare fooof peak to dosing period
 
 close all;
-peri_err = 0.3;
 
-has_peak = tbl.fooof_period_pre ~= 0;
-ptIDs_has_peak = unique(tbl.ptid(tbl.fooof_period_pre ~= 0));
-no_peak = ~has_peak;
-
-
-%x = abs(tbl.dosing_period(has_peak)-tbl.fooof_period_pre(has_peak));
-x = tbl.dosing_period_var(has_peak);
-y = tbl.fooof_width_pre(has_peak);
-[r,p]=corr(x,y,'type','pearson');
-
-figure;
-subplot(1,3,1)
-plot(x,y,'.','markersize',15);
-axis square
-
-title('width')
-ylabel('peak width')
-xlabel('std(dosing intervals)');
-
-legend(['r = ' num2str(r) ', p = ' num2str(p)])
-
-subplot(1,3,2)
-y = tbl.fooof_amp_pre(has_peak);
-plot(x,y,'.','markersize',15);
-axis square
-
-title('amplitude')
-ylabel('peak amplitude')
-xlabel('std(dosing intervals)');
-[r,p]=corr(x,y,'type','pearson');
-legend(['r = ' num2str(r) ', p = ' num2str(p)])
-
-
-subplot(1,3,3)
-y = tbl.fooof_period_pre(has_peak)-tbl.dosing_period(has_peak)
-%y = (tbl.fooof_width_pre(has_peak)./max(tbl.fooof_width_pre(has_peak)) ./ (tbl.fooof_amp_pre(has_peak)./max(tbl.fooof_amp_pre(has_peak))));
-%[f,gof] = fit(x,y,'exp2')
-plot(x,y,'.','markersize',15)%'.','markersize',15);
-axis square
-
-title('fatness of peak')
-ylabel('peak width/amp')
-xlabel('std(dosing intervals)');
-[r,p]=corr(x,y,'type','pearson');
-legend(['r = ' num2str(r) ', p = ' num2str(p)])
-
-% peak width and difference in peak period from dosing period - new plot
-
-x = abs(tbl.dosing_period(has_peak)-tbl.fooof_period_pre(has_peak));
-y = tbl.fooof_width_pre(has_peak);
-
-figure;
-subplot(1,3,1)
-plot(x,y,'.','markersize',15);
-axis square
-
-title('width')
-ylabel('peak width')
-xlabel('dosing period - peak period');
-[r,p]=corr(x,y,'type','pearson');
-legend(['r = ' num2str(r) ', p = ' num2str(p)])
-
-subplot(1,3,2)
-y = tbl.fooof_amp_pre(has_peak);
-plot(x,y,'.','markersize',15);
-axis square
-
-title('amplitude')
-ylabel('peak amplitude')
-xlabel('dosing period - peak period');
-[r,p]=corr(x,y,'type','pearson');
-legend(['r = ' num2str(r) ', p = ' num2str(p)])
-
-
-subplot(1,3,3)
-y = tbl.fooof_width_pre(has_peak) ./ tbl.fooof_amp_pre(has_peak);
-%[f,gof] = fit(x,y,'exp2')
-plot(x,y,'.','markersize',15)%'.','markersize',15);
-axis square
-
-title('fatness of peak')
-ylabel('peak width/amp')
-xlabel('dosing period - peak period');
-[r,p]=corr(x,y,'type','pearson');
-legend(['r = ' num2str(r) ', p = ' num2str(p)])
-
-
-
-% difference in peak period & dosing period vs variation in dosing 
-figure;
-x = tbl.dosing_period_var(has_peak);
-y = abs(tbl.dosing_period(has_peak)-tbl.fooof_period_pre(has_peak));
-plot(x,y,'.','markersize',15); hold on;
-xlabel('std of dosing intervals','fontsize',16);
-ylabel('dosing period - spike spectral peak','fontsize',16)
-[rho,p]=corr(x,y);
-
-p1 = polyfit(x,y,1);
-x1 = linspace(min(x),max(x));
-y1 = polyval(p1,x1);
-plot(x1,y1);
-legend(['R = ' num2str(rho) ', p = ' num2str(p)],'line of best fit')
-hold off
-
-
-
-% dosing period vs peak frequency detected by fooof
-figure;
-subplot(1,3,1)
-
+tiledlayout(3,2)
+nexttile();
 peri_12_inds = tbl.dosing_period >= 0 & tbl.dosing_period <= 16;
 non_zero_inds = tbl.fooof_period_pre ~=0;
 x = tbl.dosing_period(peri_12_inds & non_zero_inds);
 y = tbl.fooof_period_pre(peri_12_inds & non_zero_inds);
-scatter(x,y)
+scatter(x,y,'k')
 xlim([0 20])
 ylim([0 20])
-axis square;
+set(gca, 'FontSize', 12);
 hold on;
-title('>0hrs - 16hrs');
-xlabel('dosing period'); ylabel('peak in fooofed model')
-% ylim([0 40])
-% xlim([0 40])
+title('>16hrs','fontsize',14);
+xlabel('ASM dosing period'); ylabel('spike period')
 
 p1 = polyfit(x,y,1);
 x1 = linspace(min(x),max(x));
 y1 = polyval(p1,x1);
 plot(x1,y1,'linewidth',2);
-%plot([0 30],[0 30]);
 [rho,p]=corr(x,y);
-legend(['R = ' num2str(rho) ', p = ' num2str(p)],'line of best fit','y=x')
+legend(['R = ' num2str(round(100*rho)./100) ', p = ' num2str(p)],'line of best fit')
 hold off
 
+% axis square;
 
-
-subplot(1,3,2)
+nexttile();
 peri_24_inds = tbl.dosing_period > 16 & tbl.dosing_period <= 35;
 x = tbl.dosing_period(peri_24_inds & non_zero_inds); %& non_zero_inds
 y = tbl.fooof_period_pre(peri_24_inds& non_zero_inds);
 
-scatter(x,y)
+scatter(x,y,'k')
 xlim([16 35])
 ylim([16 35])
-axis square;
-hold on; 
-title('16hr - 35hrs');
-xlabel('dosing period'); ylabel('peak in fooofed model')
+set(gca, 'FontSize', 12);
+hold on;
+title('16hrs - 35hrs','fontsize',14);
+xlabel('ASM dosing period'); ylabel('spike period')
 
 p1 = polyfit(x,y,1);
 x1 = linspace(min(x),max(x));
@@ -492,11 +379,28 @@ y1 = polyval(p1,x1);
 plot(x1,y1,'linewidth',2);
 %plot([0 30],[0 30]);
 [rho,p]=corr(x,y);
-legend(['R = ' num2str(rho) ', p = ' num2str(p)],'line of best fit','y=x')
+legend(['R = ' num2str(round(100*rho)./100) ', p = ' num2str(round(10000*p)./10000)],'line of best fit','y=x')
 hold off
+% axis square;
 
-
-subplot(1,3,3)
+% 
+% nexttile();
+% x = tbl.dosing_period(non_zero_inds); %& non_zero_inds
+% y = tbl.fooof_period_pre(non_zero_inds);
+% scatter(x,y,'k')
+% set(gca, 'FontSize', 12);
+% hold on;
+% title('All dosing periods','fontsize',14);
+% xlabel('ASM dosing period'); ylabel('spike period')
+% 
+% p1 = polyfit(x,y,1);
+% x1 = linspace(min(x),max(x));
+% y1 = polyval(p1,x1);
+% plot(x1,y1,'linewidth',2);
+% [rho,p]=corr(x,y);
+% legend(['R = ' num2str(round(100*rho)./100) ', p = ' num2str(round(10000*p)./10000)],'line of best fit')
+% hold off
+% axis square;
 
 % aggregate data at a patient level- range of dosing periods
 ptids= unique(tbl.ptid);
@@ -511,44 +415,26 @@ for i = 1:length(ptids)
     has_no_dosing_period(i) = all(tbl.dosing_period(pt_inds) == 0 | isnan(tbl.dosing_period(pt_inds)) );
 end
 
-% 
-% x = dosing_range';
-% y = has_any_peak';
-% scatter(x,y); hold on;
-% xlabel('range of dosing periods (hrs)');
-% ylabel('% of dosing periods w/ peaks')
-% title('interaction between dosing periods')
-% axis square;
-% 
-% p1 = polyfit(x,y,1);
-% x1 = linspace(0,max(x));
-% y1 = polyval(p1,x1);
-% plot(x1,y1);
-% [rho,p]=corr(x,y);
-% legend(['R = ' num2str(rho) ', p = ' num2str(p)],'line of best fit')
-% hold off
-
-x = tbl.dosing_period; %& non_zero_inds
-y = tbl.fooof_period_pre;
-
-scatter(x,y)
+nexttile();
+x = dosing_range';
+y = has_any_peak';
+scatter(x,y,'k'); hold on;
+xlabel('range of dosing periods (hrs)');
+ylabel('% of dosing periods w/ peaks')
+title('Range of dosing vs spike periods','fontsize',14)
+set(gca, 'FontSize', 12);
 axis square;
-hold on; 
-title('all dosing periods');
-xlabel('dosing period'); ylabel('peak in fooofed model')
 
 p1 = polyfit(x,y,1);
-x1 = linspace(min(x),max(x));
+x1 = linspace(0,max(x));
 y1 = polyval(p1,x1);
-plot(x1,y1,'linewidth',2);
-%plot([0 30],[0 30]);
+plot(x1,y1);
 [rho,p]=corr(x,y);
-legend(['R = ' num2str(rho) ', p = ' num2str(p)],'line of best fit','y=x')
+legend(['R = ' num2str(round(100*rho)./100) ', p = ' num2str(p)],'line of best fit')
 hold off
 
 
-
-%% look at patients that have a 24hr peak
+% std of dosing and spike peak periods
 
 % how many patients with a 24hr peak also have a 12 hr and which of those
 % were also dosed q12
@@ -580,33 +466,6 @@ for i = 1:length(ptIDs)
 
 end
 
-%% perform fishers tests 
-[conttbl,chi2,p] = crosstab(has_24hr_peak,has_12hr_peak);
-peak_table = table;
-peak_table.has_24hr_peak = has_24hr_peak'; peak_table.has_12hr_peak = has_12hr_peak';
-
-[h,p,stats] = fishertest(conttbl);
-heatmap(peak_table,'has_24hr_peak','has_12hr_peak');
-
-disp(['results for association between a 24hr peak and a 12hr peak, p = ' num2str(p)])
-
-[conttbl,chi2,p] = crosstab(dosed_q12,has_12hr_peak);
-[h,p,stats] = fishertest(conttbl);
-disp(['results for association between a 12hr peak and 12hr dosing, p = ' num2str(p)])
-
-[conttbl,chi2,p] = crosstab(only_dosed_q12,has_12hr_peak);
-[h,p,stats] = fishertest(conttbl);
-disp(['results for association between a 12hr peak and *only* 12hr dosing, p = ' num2str(p)])
-
-[conttbl,chi2,p] = crosstab(has_24hr_peak&has_12hr_peak,~dosed_q12);
-[h,p,stats] = fishertest(conttbl);
-disp(['results for association between presence of both 24hr peak and a 12hr peak with  q12 dosing, p = ' num2str(p)])
-
-[conttbl,chi2,p] = crosstab(has_24hr_peak,dosed_q24);
-[h,p,stats] = fishertest(conttbl);
-disp(['results for association between 24hr peak and a 24hr dosing, p = ' num2str(p)])
-
-%% some post hoc testing 
 pts_12hr_dosing_peak = ptIDs(has_12hr_peak & dosed_q12);
 pts_12hr_dosing_nopeak = ptIDs(~has_12hr_peak & dosed_q12);
 
@@ -623,69 +482,200 @@ for i = 1:length(pts_12hr_dosing_nopeak)
    std_nopeak(i) = sum(tbl.dosing_period_var(tbl.ptid == pt & (abs(tbl.dosing_period-12) <=err*12))); % sum of the std for drugs dosed at 12hrs
 end 
 
-figure;
-subplot(1,2,1)
-[p,h,stats]=ranksum(std_nopeak,std_peak)
+nexttile();
+[p,~,~]=ranksum(std_nopeak,std_peak);
 data = [mean(std_peak) mean(std_nopeak)];
-bar(data);
-
+bar(data,'FaceColor', [0.5 0.5 0.5], 'EdgeColor', 'k');
 errhigh =mean(std_peak) + std(mean(std_peak)/length(mean(std_peak)));
 errlow  = mean(std_peak) - std(mean(std_peak)/length(mean(std_peak)));
 hold on
 
-er = errorbar([1,2],data,errlow,errhigh);    
-
-hold off
+errorbar([1,2],data,errlow,errhigh,'k','LineWidth', 1.5);  
 
 
-ylabel('total std of 12hr dosing');
+ylabel('total std of 12hr dosing','fontsize',14);
 xticklabels({'dosed q12 & has peak','dosed q12 & no peak'})
-title('12hr dosing')
-axis square;
+title('Variation in 12hr dosing','fontsize',14)
+set(gca, 'FontSize', 12);
+legend(['p = ' num2str(round(p*1000)./1000)],'','')
 
-% do same thing for 24hr peak
-
-pts_24hr_dosing_peak = ptIDs(has_24hr_peak & dosed_q24);
-pts_24hr_dosing_nopeak = ptIDs(~has_24hr_peak & dosed_q24);
-
-std_peak = zeros(1,length(pts_24hr_dosing_peak));
-for i = 1:length(pts_24hr_dosing_peak)
-    pt = pts_24hr_dosing_peak(i);
-    std_peak(i) = mean(tbl.dosing_period_var(tbl.ptid == pt & (abs(tbl.dosing_period-24) <=err*24)));
-
-end 
-
-std_nopeak = zeros(1,length(pts_24hr_dosing_nopeak));
-for i = 1:length(pts_24hr_dosing_nopeak)
-   pt = pts_24hr_dosing_nopeak(i);
-   std_nopeak(i) = sum(tbl.dosing_period_var(tbl.ptid == pt & (abs(tbl.dosing_period-24) <=err*24))); % sum of the std for drugs dosed at 12hrs
-end 
+%axis square;
 
 
-subplot(1,2,2)
-[p,h,stats]=ranksum(std_nopeak,std_peak)
-data = [mean(std_peak) mean(std_nopeak)];
-bar(data);
-title('24hr dosing')
-axis square;
+%% perform fishers tests 
+[conttbl,chi2,p] = crosstab(has_24hr_peak,has_12hr_peak);
+peak_table = table;
+peak_table.has_24hr_peak = has_24hr_peak'; peak_table.has_12hr_peak = has_12hr_peak';
 
-errhigh =mean(std_peak) + std(mean(std_peak)/length(mean(std_peak)));
-errlow  = mean(std_peak) - std(mean(std_peak)/length(mean(std_peak)));
-hold on
+[~,p,stats] = fishertest(conttbl);
+nexttile();
+h=heatmap(peak_table,'has_24hr_peak','has_12hr_peak');
+title('association of 12hr and 24hr spike peak')
+ax = gca; % Get the current axis
+ax.FontSize = 14;
+%h.Parent.DataAspectRatio = [1, 1, 1];
 
-er = errorbar([1,2],data,errlow,errhigh);    
+% disp(['results for association between a 24hr peak and a 12hr peak, p = ' num2str(p)])
+% 
+% [conttbl,chi2,p] = crosstab(dosed_q12,has_12hr_peak);
+% [h,p,stats] = fishertest(conttbl);
+% disp(['results for association between a 12hr peak and 12hr dosing, p = ' num2str(p)])
+% 
+% [conttbl,chi2,p] = crosstab(only_dosed_q12,has_12hr_peak);
+% [h,p,stats] = fishertest(conttbl);
+% disp(['results for association between a 12hr peak and *only* 12hr dosing, p = ' num2str(p)])
+% 
+% [conttbl,chi2,p] = crosstab(has_24hr_peak&has_12hr_peak,~dosed_q12);
+% [h,p,stats] = fishertest(conttbl);
+% disp(['results for association between presence of both 24hr peak and a 12hr peak with  q12 dosing, p = ' num2str(p)])
+% 
+% [conttbl,chi2,p] = crosstab(has_24hr_peak,dosed_q24);
+% [h,p,stats] = fishertest(conttbl);
+% disp(['results for association between 24hr peak and a 24hr dosing, p = ' num2str(p)])
 
-hold off
+
+%% now look at plv of spikes and ASMs 
+[all_plv,all_asm_plv,all_spikes_plv] = calc_plv_spikes_asm(all_spike_rate,all_pts_drug_samp,file_inds,ptIDs);
+
+%%
+
+mean_plv = cellfun(@nanmedian,all_plv); % mean plv before seizure 
+
+has_any_peak = false(1,length(ptIDs));
+for i = 1:length(ptIDs)
+    pt_inds = tbl.ptid == ptIDs(i);
+    has_any_peak(i) = any(tbl.fooof_period_pre(pt_inds)~=0);
+end
+
+x = mean_plv((has_any_peak));
+y = mean_plv(~(has_any_peak));
+p = ranksum(x',y')
+
+figure;
+x1s = ones(length(x),1)+ rand(length(x),1);
+x2s = 4*ones(length(y),1)+ rand(length(y),1);
+plot(x1s,x,'o','markerfacecolor','k','MarkerEdgeColor','k','markersize',10)
+hold on;
+plot(x2s,y,'o','Markerfacecolor','r','MarkerEdgeColor','r','markersize',10)
+xlim([0 6]);
+xticks([1,4])
+xticklabels({'has peak','no peak'})
+set(gca, 'FontSize', 14);
+ylabel('PLV (spikes and ASM)','fontsize',14)
+title('PLV between spikes and ASM','fontsize',16)
 
 
-ylabel('total std of 24hr dosing');
-xticklabels({'dosed q24 & has peak','dosed q24 & no peak'})
 
+%% some plotting code
 
-
-
-
-
+% 
+% close all;
+% peri_err = 0.3;
+% 
+% has_peak = tbl.fooof_period_pre ~= 0;
+% ptIDs_has_peak = unique(tbl.ptid(tbl.fooof_period_pre ~= 0));
+% no_peak = ~has_peak;
+% 
+% 
+% %x = abs(tbl.dosing_period(has_peak)-tbl.fooof_period_pre(has_peak));
+% x = tbl.dosing_period_var(has_peak);
+% y = tbl.fooof_width_pre(has_peak);
+% [r,p]=corr(x,y,'type','pearson');
+% 
+% figure;
+% subplot(1,3,1)
+% plot(x,y,'.','markersize',15);
+% axis square
+% 
+% title('width')
+% ylabel('peak width')
+% xlabel('std(dosing intervals)');
+% 
+% legend(['r = ' num2str(r) ', p = ' num2str(p)])
+% 
+% subplot(1,3,2)
+% y = tbl.fooof_amp_pre(has_peak);
+% plot(x,y,'.','markersize',15);
+% axis square
+% 
+% title('amplitude')
+% ylabel('peak amplitude')
+% xlabel('std(dosing intervals)');
+% [r,p]=corr(x,y,'type','pearson');
+% legend(['r = ' num2str(r) ', p = ' num2str(p)])
+% 
+% 
+% subplot(1,3,3)
+% y = tbl.fooof_period_pre(has_peak)-tbl.dosing_period(has_peak)
+% %y = (tbl.fooof_width_pre(has_peak)./max(tbl.fooof_width_pre(has_peak)) ./ (tbl.fooof_amp_pre(has_peak)./max(tbl.fooof_amp_pre(has_peak))));
+% %[f,gof] = fit(x,y,'exp2')
+% plot(x,y,'.','markersize',15)%'.','markersize',15);
+% axis square
+% 
+% title('fatness of peak')
+% ylabel('peak width/amp')
+% xlabel('std(dosing intervals)');
+% [r,p]=corr(x,y,'type','pearson');
+% legend(['r = ' num2str(r) ', p = ' num2str(p)])
+% 
+% % peak width and difference in peak period from dosing period - new plot
+% 
+% x = abs(tbl.dosing_period(has_peak)-tbl.fooof_period_pre(has_peak));
+% y = tbl.fooof_width_pre(has_peak);
+% 
+% figure;
+% subplot(1,3,1)
+% plot(x,y,'.','markersize',15);
+% axis square
+% 
+% title('width')
+% ylabel('peak width')
+% xlabel('dosing period - peak period');
+% [r,p]=corr(x,y,'type','pearson');
+% legend(['r = ' num2str(r) ', p = ' num2str(p)])
+% 
+% subplot(1,3,2)
+% y = tbl.fooof_amp_pre(has_peak);
+% plot(x,y,'.','markersize',15);
+% axis square
+% 
+% title('amplitude')
+% ylabel('peak amplitude')
+% xlabel('dosing period - peak period');
+% [r,p]=corr(x,y,'type','pearson');
+% legend(['r = ' num2str(r) ', p = ' num2str(p)])
+% 
+% 
+% subplot(1,3,3)
+% y = tbl.fooof_width_pre(has_peak) ./ tbl.fooof_amp_pre(has_peak);
+% %[f,gof] = fit(x,y,'exp2')
+% plot(x,y,'.','markersize',15)%'.','markersize',15);
+% axis square
+% 
+% title('fatness of peak')
+% ylabel('peak width/amp')
+% xlabel('dosing period - peak period');
+% [r,p]=corr(x,y,'type','pearson');
+% legend(['r = ' num2str(r) ', p = ' num2str(p)])
+% 
+% 
+% 
+% % difference in peak period & dosing period vs variation in dosing 
+% figure;
+% x = tbl.dosing_period_var(has_peak);
+% y = abs(tbl.dosing_period(has_peak)-tbl.fooof_period_pre(has_peak));
+% plot(x,y,'.','markersize',15); hold on;
+% xlabel('std of dosing intervals','fontsize',16);
+% ylabel('dosing period - spike spectral peak','fontsize',16)
+% [rho,p]=corr(x,y);
+% 
+% p1 = polyfit(x,y,1);
+% x1 = linspace(min(x),max(x));
+% y1 = polyval(p1,x1);
+% plot(x1,y1);
+% legend(['R = ' num2str(rho) ', p = ' num2str(p)],'line of best fit')
+% hold off
+% 
 
 
 

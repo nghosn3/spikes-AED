@@ -109,7 +109,7 @@ close all;
 tic
 figure;
 tiledlayout('flow');
-for ipt =74%:length(ptIDs)%[67,79]
+for ipt =1:length(ptIDs)%[67,79]
 
     ptID = ['HUP' num2str(ptIDs(ipt))];
 
@@ -279,7 +279,7 @@ toc
 
 %% compare the peakiness of the spike peak at dosing period to distance from
 % 12hr dosing during pre period
-tbl=table();
+tbl=table(); 
 tbl.ptid=zeros(0);
 tbl.dosing_period=zeros(0);
 tbl.dosing_period_var=zeros(0);

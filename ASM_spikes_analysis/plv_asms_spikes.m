@@ -82,6 +82,7 @@ for ipt = 1:length(ptIDs)
 
         % Plot the PLV values over time
         plot(time_vector, plv_over_time);
+        
         xlabel('Time (ms)');
         ylabel('PLV');
         title('Phase Locking Value Over Time');
