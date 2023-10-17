@@ -323,7 +323,7 @@ ylabel('Spikes in sleep','fontsize',14)
 %axis square;
 set(gca, 'FontSize', 12);
 title('Spikes by wakefulness','fontsize',14)
-[h,p] = ttest(awake_spikes_asm(:,1),sleep_spikes_asm(:,1))
+p= signrank(awake_spikes_asm(:,1),sleep_spikes_asm(:,1))
 legend(['p = ' num2str(p)])
 
 
@@ -338,8 +338,8 @@ ylabel('ASM load in sleep','fontsize',14)
 %axis square;
 set(gca, 'FontSize', 12);
 title('ASM load by wakefulness','fontsize',14)
-[h,p] = ttest(awake_spikes_asm(:,2),sleep_spikes_asm(:,2))
-legend(['p = ' num2str(p)])
+p = signrank(awake_spikes_asm(:,2),sleep_spikes_asm(:,2))
+legend(['p = ' num2str(round(p*1000)./1000)])
 
 
 
@@ -355,7 +355,9 @@ ylim(limits); xlim(limits); axis square;
 title('inter-ictal spike rate before vs after first seizure','fontsize',16)
 
 % compare pre and post ictal spike rate across patients (aggregated across seizures?)
-[h,p] = ttest(pre_ictal_rate,post_ictal_rate); % post ictal spike rate is higher??
+p=signrank(avg_rate_before_sz(ex_pts),avg_rate_after_sz(ex_pts))
+legend(['p = ' num2str(p)])
+ % post ictal spike rate is higher??
 
 
 
