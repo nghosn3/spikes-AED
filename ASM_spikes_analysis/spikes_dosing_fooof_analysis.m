@@ -55,10 +55,6 @@ for ipt =1:length(ptIDs)
             [pks,locs] = findpeaks(med_curve);
             if length(locs)>2 && (locs(1) <= taper_thresh)
                 diffs = diff(locs);
-%                 if length(diffs)>1
-%                     locs(end+1) = length(med_curve);
-%                     diffs = diff(locs);
-%                 end
                 last_admin = find(diffs >= taper_thresh);
                 if ~isempty(last_admin)
                     stop_med =locs(last_admin(1))+12; %ind+1 of last administration
@@ -69,6 +65,8 @@ for ipt =1:length(ptIDs)
 
                 inds(n,1) = 1;
                 inds(n,2) = stop_med;
+                % NEED TO ALSO INCLUDE WHEN MED WAS RESUMED TO MARK TAPER
+                % PERIOD
             end
         end
     end

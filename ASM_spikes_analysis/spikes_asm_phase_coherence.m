@@ -76,11 +76,15 @@ end
 
 %%
 close all;
-plot_figs = 1;
+plot_figs = 0;
+thresh = 6*24*2; % two days of data
 
+all_12_24_plv = nan(length(ptIDs),1);
+all_7_24_plv = nan(length(ptIDs),1);
 xcorr_results = nan(length(ptIDs),2);
-xcorr_results_12_24hr = nan(length(ptIDs),2); 
+xcorr_results_12_24hr = nan(length(ptIDs),2);
 for ipt =  1:length(ptIDs)
+
     fs = 6 ; % 6 sample every hour - units are in hours
     exact_time = all_spike_times{ipt};
     signal = zscore(all_spike_rate{ipt});
@@ -90,11 +94,11 @@ for ipt =  1:length(ptIDs)
     % pre and post condition breakpoints
     all_asm_inds = pt_data_clips.inds(ipt); all_asm_inds = all_asm_inds{:};
     ind1 = max(all_asm_inds(:,2));
-    ind1 = length(asm_load);
+    %ind1 = length(asm_load);
 
-    ind2 = min(all_asm_inds(:,3));
+    %ind2 = min(all_asm_inds(:,3));
 
-    if ~isnan(ind1)
+    if ~isnan(ind1) && ind1 > thresh
         time = time(1:ind1);
         signal = signal(1:ind1);
 
@@ -110,149 +114,178 @@ for ipt =  1:length(ptIDs)
         Psi0 = pi^(-.25);
         dj = 1/12;
         modifier = (dj*dt^(1/2))/(Cd*Psi0);
+        err = 0.1;
 
         % Defining inverse wavelet function
         invcwt = @ (wave,scale,pk_locs) modifier*sum(real(wave(pk_locs,:))./(scale(pk_locs)'.^(1/2)),1);
 
-        %Finding 5 sec peak period (with +/- 33% per Baud et. al., 2018)
-        pk_per = pt_data_clips.dosing_period_overall(ipt);% pt_data_clips.dosing_period(ipt); % average dosing
-        if isnan(pk_per) | pk_per == 0
-            pk_per = 12;
-        end 
 
-        pk_per_12 = 12;
-        pk_per_24 = 24;
+        pk_per_asm =  pt_data_clips.dosing_period_overall(ipt);
 
-        % You can also use the pre_pks found above by filtering for the specific peak of
-        % interest and instead of 5, pk_per = period(pk_loc) where pk_loc is the idx of peak of interest
-        err = 0.05; % bounds around frequency of interest
-        per_bounds = [pk_per-err*pk_per,pk_per+err*pk_per];
-        per_mask = period > per_bounds(1) & period < per_bounds(2);
+        if  ~isnan(pk_per_asm) || pk_per_asm~=0
+            per_bounds = [pk_per_asm-err*pk_per_asm,pk_per_asm+err*pk_per_asm];
+            per_mask = period > per_bounds(1) & period < per_bounds(2);
 
-        % Plotting inverse wavelet and signal (scales changed for comparison)
-        inverse_wavelet = invcwt(wave,scale,per_mask);
-        invw_phase = angle(hilbert(inverse_wavelet));
+            % phase of ASM load
+            asm_signal = asm_load(1:ind1);
+
+            [wave,period,scale,coi] = wt([time(1:ind1)',asm_signal'],hours(1/fs));
+            inverse_wavelet_asm = invcwt(wave,scale,per_mask);
+            invw_phase_asm = angle(hilbert(inverse_wavelet_asm));
 
 
-        % phase of ASM load
-        asm_signal = asm_load(1:ind1);
-
-        [wave,period,scale,coi] = wt([time(1:ind1)',asm_signal'],hours(1/fs));
-        inverse_wavelet_asm = invcwt(wave,scale,per_mask);
-        invw_phase_asm = angle(hilbert(inverse_wavelet_asm));
-
-        max_lags = 24*6; % 12hours - max lag is one cycle - 6hrs is half a cycle
-        [xr,lags] = xcorr(invw_phase,invw_phase_asm,max_lags,'normalized');
-        [max_xr,max_ind] = max(abs(xr));
-        max_xr_lags  = [(lags(max_ind)./6) max_xr]; % lags in hours
-
-        xcorr_results(ipt,:) = max_xr_lags;
-
-        % 12hr wavelet and 24hr wavelet
-        per_bounds = [pk_per_12-err*pk_per_12,pk_per_12+err*pk_per_12];
-        per_mask = period > per_bounds(1) & period < per_bounds(2);
-
-        % Plotting inverse wavelet and signal (scales changed for comparison)
-        inverse_wavelet_12hr = invcwt(wave,scale,per_mask);
-        
-        %24
-        per_bounds = [pk_per_24-err*pk_per_24,pk_per_24+err*pk_per_24];
-        per_mask = period > per_bounds(1) & period < per_bounds(2);
-        inverse_wavelet_24hr = invcwt(wave,scale,per_mask);
-        
-        [xr,lags] = xcorr(inverse_wavelet_12hr,inverse_wavelet_24hr,max_lags,'normalized');
-        [max_xr,max_ind] = max(abs(xr));
-        max_xr_lags  = [(lags(max_ind)./6) max_xr]; % lags in hours
-
-        xcorr_results_12_24hr(ipt,:) = max_xr_lags;
+            pk_per_12 = 12;
+            pk_per_7 = 7;
+            pk_per_24 = 24;
 
 
-%         figure;
-%         plot(time(1:ind1),inverse_wavelet_12hr,'LineWidth',1.5,'LineStyle','-');hold on;
-%         plot(time(1:ind1),inverse_wavelet_24hr,'LineWidth',1)
-%         legend(['12hr ICWT spikes'],[ '24hr ICWT of spikes'])
+            % 12hr wavelet and 24hr wavelet
+            per_bounds = [pk_per_12-err*pk_per_12,pk_per_12+err*pk_per_12];
+            per_mask = period > per_bounds(1) & period < per_bounds(2);
+            inverse_wavelet_12hr = invcwt(wave,scale,per_mask);
 
-
-
-        if plot_figs
-            figure;
-            subplot(2,2,1)
-            plot(period,all_periodogram); hold on;
-            xlabel('Period (hrs)')
-            title('periodogram: pre-taper')
-            % Find the peaks (filter noise out with prominence)
-            [pks,locs] = findpeaks(all_periodogram);%,"MinPeakProminence",prom_thresh);
-            % if using different signal, will have to tune this prominence val
-            stem(period(locs),pks)
-            xticks(round(period(locs)*10)./10)
-
-            subplot(2,2,2)
-
-            plot(time(1:ind1),asm_signal); hold on;
-            plot(time(1:ind1),(inverse_wavelet_asm+1) *2,'LineWidth',1.5,'LineStyle','-');hold on;
-            legend('asm load','wavelet transform of asm load')
-            title(['ASM load and ' num2str(pk_per) 'hr wavelet'])
-
-            subplot(2,2,3)
-            plot(time,signal,'LineWidth',.5);hold on;
-            plot(time,inverse_wavelet*5,'LineWidth',2,'LineStyle','-')
-            xlabel('Time(hours)')
-            title(['HUP ' num2str(ptIDs(ipt)) ': wavelet transform of spikes'])
-            ylabel('normalized amplitude')
-            legend('Raw Signal', ['' num2str(pk_per) ' ICWT of spikes'])
-
-
-            subplot(2,2,4)
-            plot(time(1:ind1),inverse_wavelet*50,'LineWidth',1.5,'LineStyle','-');hold on;
-            plot(time(1:ind1),invw_phase,'LineWidth',1)
-            legend(['' num2str(pk_per) ' ICWT of spikes'],[ num2str(pk_per) ' phase of spikes'])
-            xlabel('Time (hrs)')
-            ylabel('normalized amplitude')
-            title('wavelet transform of spikes and phase')
-
-
-
-            figure;
-            subplot(3,1,1)
-
-            plot(time(1:ind1),inverse_wavelet_asm,'LineWidth',1.5,'LineStyle','-');hold on;
-            plot(time(1:ind1),inverse_wavelet,'LineWidth',1)
-            legend(['' num2str(pk_per) ' ICWT of asm load'],[ num2str(pk_per) 'ICWT of spikes'])
+            %24
+            per_bounds = [pk_per_24-err*pk_per_24,pk_per_24+err*pk_per_24];
+            per_mask = period > per_bounds(1) & period < per_bounds(2);
+            inverse_wavelet_24hr = invcwt(wave,scale,per_mask);
             
-            xlabel('Time (hours)')
-            ylabel('normalized amplitude')
-            title(['HUP ' num2str(ptIDs(ipt)) ': wavelet transform of spikes and ASMs'])
+            % 7
+            per_bounds = [pk_per_7-err*pk_per_7,pk_per_7+err*pk_per_7];
+            per_mask = period > per_bounds(1) & period < per_bounds(2);
+            inverse_wavelet_7hr = invcwt(wave,scale,per_mask);
+            
+            
+            max_lags = 6*12; % 6*n =  hours 
 
-            subplot(3,1,2)
-            plot(time(1:ind1),invw_phase_asm,'LineWidth',1.5,'LineStyle','-');hold on;
-            plot(time(1:ind1),invw_phase,'LineWidth',1.5,'LineStyle','-');hold on;
-            legend(["phase of asm load","phase of spikes"])
-            xlabel('Time (hours)')
-            title(['HUP ' num2str(ptIDs(ipt)) ':phase of spikes and ASMs'])
+            [xr,lags] = xcorr(inverse_wavelet_12hr,inverse_wavelet_24hr,max_lags,'normalized');
+            [max_xr,max_ind] = max(abs(xr));
+            max_xr_lags  = [(lags(max_ind)./6) max_xr]; % lags in hours
+
+            xcorr_results_12_24hr(ipt,:) = max_xr_lags;
+
+            [xr,lags] = xcorr(inverse_wavelet_12hr,inverse_wavelet_asm,max_lags,'normalized');
+            [max_xr,max_ind] = max(abs(xr));
+            max_xr_lags  = [(lags(max_ind)./6) max_xr]; % lags in hours
+
+            xcorr_results(ipt,:) = max_xr_lags;
 
 
-            subplot(3,1,3)
-            stem(lags./6,xr);
-            xlabel('lags (hours)')
-            title(['HUP ' num2str(ptIDs(ipt)) ': lagged cross correlation'])
 
+            % phase locking of the 12 and 24hr wavelets before taper
+            [plv_over_time,time_vector] = calc_plv(inverse_wavelet_12hr,inverse_wavelet_24hr);
+            all_12_24_plv(ipt) = mean(plv_over_time);
+
+            [plv_over_time,time_vector] = calc_plv(inverse_wavelet_7hr,inverse_wavelet_24hr);
+            all_7_24_plv(ipt) = mean(plv_over_time);
+
+
+            if plot_figs
+                tiledlayout;
+                nexttile;
+                plot(period,all_periodogram); hold on;
+                xlabel('Period (hrs)')
+                title('periodogram: pre-taper')
+                % Find the peaks (filter noise out with prominence)
+                [pks,locs] = findpeaks(all_periodogram);%,"MinPeakProminence",prom_thresh);
+                % if using different signal, will have to tune this prominence val
+                stem(period(locs),pks)
+                xticks(round(period(locs)*10)./10)
+
+                nexttile;
+
+                plot(time(1:ind1),asm_signal); hold on;
+                plot(time(1:ind1),(inverse_wavelet_asm+1) *2,'LineWidth',1.5,'LineStyle','-');hold on;
+                legend('asm load','wavelet transform of asm load')
+                title(['ASM load and ' num2str(pk_per) 'hr wavelet'])
+
+                nexttile;
+                plot(time,signal,'LineWidth',.5);hold on;
+                plot(time,inverse_wavelet*5,'LineWidth',2,'LineStyle','-')
+                xlabel('Time(hours)')
+                title(['HUP ' num2str(ptIDs(ipt)) ': wavelet transform of spikes'])
+                ylabel('normalized amplitude')
+                legend('Raw Signal', ['' num2str(pk_per) ' ICWT of spikes'])
+
+
+                nexttile;
+                plot(time(1:ind1),inverse_wavelet*50,'LineWidth',1.5,'LineStyle','-');hold on;
+                plot(time(1:ind1),invw_phase,'LineWidth',1)
+                legend(['' num2str(pk_per) ' ICWT of spikes'],[ num2str(pk_per) ' phase of spikes'])
+                xlabel('Time (hrs)')
+                ylabel('normalized amplitude')
+                title('wavelet transform of spikes and phase')
+
+
+                tiledlayout('flow');
+                nexttile();
+
+                plot(time(1:ind1),inverse_wavelet_asm,'LineWidth',1.5,'LineStyle','-');hold on;
+                plot(time(1:ind1),inverse_wavelet,'LineWidth',1)
+                legend(['' num2str(pk_per) ' ICWT of asm load'],[ num2str(pk_per) 'ICWT of spikes'])
+
+                xlabel('Time (hours)')
+                ylabel('normalized amplitude')
+                title(['HUP ' num2str(ptIDs(ipt)) ': wavelet transform of spikes and ASMs'])
+
+                nexttile();
+                plot(time(1:ind1),invw_phase_asm,'LineWidth',1.5,'LineStyle','-');hold on;
+                plot(time(1:ind1),invw_phase,'LineWidth',1.5,'LineStyle','-');hold on;
+                legend(["phase of asm load","phase of spikes"])
+                xlabel('Time (hours)')
+                title(['HUP ' num2str(ptIDs(ipt)) ':phase of spikes and ASMs'])
+
+
+                nexttile();
+                stem(lags./6,xr);
+                xlabel('lags (hours)')
+                title(['HUP ' num2str(ptIDs(ipt)) ': lagged cross correlation'])
+            end
 
         end
-
-
     end
-
 end
+
 %%
-figure;
+
+
+close all;
+tiledlayout('flow');
+nexttile
 histogram(xcorr_results(:,1))
 xlabel('lag (hrs)','fontsize',14)
 ylabel('# patients','fontsize',14)
-title('lag of maximal correlation','fontsize',14)
+title('lag max correlation of 12hr spike and ASM load','fontsize',14)
 
-figure;
+nexttile;
 histogram(xcorr_results_12_24hr(:,1),'numbins',15)
 xlabel('lag (hrs)','fontsize',14)
 ylabel('# patients','fontsize',14)
-title('lag of maximal correlation between 12hr and 24hr wavelets','fontsize',14)
+title('lag max correlation of 12hr and 24hr wavelets','fontsize',14)
+
+
+% phase locking value between the 12- and 24hr waves
+nexttile();
+histogram(all_12_24_plv);
+hold on;
+xline(nanmedian(all_7_24_plv),'r--','linewidth',1.5);
+legend('12-24hr PLV','null: 7hr-24hr PLV')
+xlabel('PLV','fontsize',14)
+ylabel('# patients','fontsize',14)
+title('PLV of 12hr and 24hr wavelets','fontsize',16)
+
+%
+nexttile;
+x = all_12_24_plv((has_12hr_peak));
+y = all_12_24_plv(~has_12hr_peak);
+p = ranksum(x',y')
+
+b1 = boxchart(all_12_24_plv,'groupbycolor',has_12hr_peak,'JitterOutliers','on');
+legend('no 12hr peak','has 12hr peak','location','best')
+
+set(gca, 'FontSize', 14);
+ylabel('PLV (12hr and 24hr wavelet)','fontsize',14)
+title(['PLV(12hr - 24hr) by fooof results, p = ' num2str(round(10*p)./10)],'fontsize',14)
+
+
+
 
