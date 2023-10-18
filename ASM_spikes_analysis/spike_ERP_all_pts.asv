@@ -211,7 +211,7 @@ ciLower = meanSignal - t * stdSignal / sqrt(n);
 ciUpper = meanSignal + t * stdSignal / sqrt(n);
 
 % Plot the mean day spike rate and confidence interval
-tiledlayout(5,3)
+tiledlayout(4,3)
 nexttile([1,3])
 x = linspace(-6,6,length(meanSignal));
 time = x;  % Time axis
@@ -227,7 +227,6 @@ xlabel('Time relative to ASM admin');
 ylabel('normalized spikes');
 title('Average spike rate after ASM administration: day');
 grid on;
-set(gca,'fontsize',14)
 
 %now plot the night trials
 % Calculate the mean signal and standard deviation
@@ -251,13 +250,12 @@ fill([time, fliplr(time)], [ciLower, fliplr(ciUpper)], 'b', 'FaceAlpha', 0.3, 'E
 [bkpts,res] = findchangepts(meanSignal,MaxNumChanges=1);
 %xline(time(bkpts),'r','LineWidth',2)
 xline(0,'k--','LineWidth',2)
+legend('mean spike rate','95% CI','medication admin')
 % Customize the plot
 xlabel('Time relative to ASM admin');
 ylabel('normalized spikes');
 title('Average spike rate after ASM administration: Night');
 grid on;
-set(gca,'fontsize',14)
-
 
 % make a plot comparing the pre and post admin spike rate for day and night. color code by mean asm load
 
@@ -322,36 +320,51 @@ legend(['p = ' num2str(round(100*p)./100)])
 
 nexttile([1,3])
 %boxchart(tbl_day.change_spike_rate,'groupByColor',tbl_day.ptID);
-boxchart(categorical(tbl_day.ptID(tbl_day.label==0)),tbl_day.change_spike_rate(tbl_day.label==0));
+boxchart(categorical(tbl_day.ptID),tbl_day.change_spike_rate);
 hold on;
 yline(0,'r--','linewidth',1);
-set(gca,'fontsize',12);
-xlabel('patient');
-title('change in spike rate: nighttime')
+setgca()
 
-
-nexttile([1,3])
-%boxchart(tbl_day.change_spike_rate,'groupByColor',tbl_day.ptID);
-boxchart(categorical(tbl_day.ptID(tbl_day.label==1)),tbl_day.change_spike_rate(tbl_day.label==1));
-hold on;
-yline(0,'r--','linewidth',1);
-set(gca,'fontsize',12);
-xlabel('patient');
-title('change in spike rate: daytime')
-
-
-
-
-%% do stats across patients across trials - 
+% do stats across patients across trials - 
 modelspec = 'change_spike_rate ~asm_load+label+(1|ptID)';
 mdl_day =fitglme(tbl_day,modelspec) % 'Distribution','Poisson';
 
+% which patients show decrease in spikes after admin
+patients_decrease = unique(tbl_day.ptID(tbl_day.change_spike_rate <  0));
 
 %% save the results
 % dirr = '/Volumes/users/nghosn3/Pioneer/spikes-AED/ASM-spikes-analysis/';
 % save([dirr 'asm_erp_analysis_results.mat'],'patients_decrease','tbl_day','tbl_night','all_trials_day','all_trials_night','all_ptids_night','all_ptids_day','spike_trials','drug_trials','trial_labels')
 
-figure;
+%% subplot(2,1,2)
+
+tiledlayout('flow');
+meanSignal = nanmean(all_trials_day, 1);
+stdSignal = nanstd(all_trials_day, 1);
+
+% Calculate the confidence interval bounds
+alpha = 0.05;  % Significance level (1 - confidence levelc)
+n = size(all_trials_day, 1);
+t = tinv(1 - alpha/2, n - 1);  % t-value for two-tailed t-distribution
+ciLower = meanSignal - t * stdSignal / sqrt(n);
+ciUpper = meanSignal + t * stdSignal / sqrt(n);
+
+
+time = x;  % Time axis
+nexttile([1 2])
+plot(time, meanSignal, 'b', 'LineWidth', 2);
+hold on;
+fill([time, fliplr(time)], [ciLower, fliplr(ciUpper)], 'b', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+xline(0,'r--','linewidth',2)
+
+legend('mean spike rate','95% CI','medication admin')
+% Customize the plot
+xlabel('Time relative to ASM admin');
+ylabel('normalized spikes');
+title('Average spike rate after ASM administration: day');
+grid on;
+
+nexttile
 histogram(tbl_day.change_spike_rate);
 title('change after ASM administration','fontsize',14);
 xlabel('change in spike rate (z-score)','fontsize',12);
