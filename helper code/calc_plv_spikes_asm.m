@@ -17,7 +17,8 @@ for ipt = 1:length(ptIDs)
 
     %only use data up to first sz -  check if enough data before first seizure, otherwise exclude.
     sz_inds = get_spike_seizure_inds(ptID,file_inds{ipt});
-    time_thresh = 6*24*2; % two days of data
+    time_thresh = 6*24*1; % two days of data
+    sz_inds = length(asm_load);
     if sz_inds(1) > time_thresh
         asm_load = asm_load(1:sz_inds(1));
         spikes = spikes(1:sz_inds(1));

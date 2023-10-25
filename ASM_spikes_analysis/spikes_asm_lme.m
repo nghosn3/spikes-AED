@@ -10,10 +10,6 @@ addpath([curr_path '/spikes-AED/helper code'])
 addpath([curr_path '/spikes-AED/ASM_spikes_analysis'])
 
 
-
-tic
-
-
 %load spike rate - new from 2/13/23 (samp/10min)
 load('spikes_rates_021323.mat');
 spikes_fname = 'spikes_rates_021323.mat';

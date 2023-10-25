@@ -106,7 +106,7 @@ close all;
 
 excluded = false(length(ptIDs),1);
 tic
-for ipt =1:length(ptIDs)%[67,79]
+for ipt =79%1:length(ptIDs)%[67,79]
 
     ptID = ['HUP' num2str(ptIDs(ipt))];
 
@@ -262,6 +262,9 @@ toc
 
 %% compare the peakiness of the spike peak at dosing period to distance from
 % 12hr dosing during pre period
+
+% load the fooof results and 
+load('fooof_results_091223.mat')
 tbl=table();
 tbl.ptid=zeros(0);
 tbl.dosing_period=zeros(0);
@@ -535,33 +538,36 @@ ax.FontSize = 14;
 %% now look at plv of spikes and ASMs 
 [all_plv,all_asm_plv,all_spikes_plv] = calc_plv_spikes_asm(all_spike_rate,all_pts_drug_samp,file_inds,ptIDs);
 
+
 %%
+r_plv = nan(length(ptIDs),1);
 
-mean_plv = cellfun(@nanmedian,all_plv); % mean plv before seizure 
-
-has_any_peak = false(1,length(ptIDs));
+tiledlayout('flow')
 for i = 1:length(ptIDs)
-    pt_inds = tbl.ptid == ptIDs(i);
-    has_any_peak(i) = any(tbl.fooof_period_pre(pt_inds)~=0);
-end
+    plv = all_plv{i};
+    nan_inds =isnan(plv);
+    plv(nan_inds)=[];
+    asm_load = all_asm_plv{i};
+    asm_load(nan_inds)=[];
 
-x = mean_plv((has_any_peak));
-y = mean_plv(~(has_any_peak));
-p = ranksum(x',y')
+    r = corrcoef(asm_load,plv);
+    r_plv(i) = r(1,2);
+%     nexttile;
+%     plot(plv,asm_load,'.')
+
+
+end 
 
 figure;
-x1s = ones(length(x),1)+ rand(length(x),1);
-x2s = 4*ones(length(y),1)+ rand(length(y),1);
-plot(x1s,x,'o','markerfacecolor','k','MarkerEdgeColor','k','markersize',10)
-hold on;
-plot(x2s,y,'o','Markerfacecolor','r','MarkerEdgeColor','r','markersize',10)
-xlim([0 6]);
-xticks([1,4])
-xticklabels({'has peak','no peak'})
-set(gca, 'FontSize', 14);
-ylabel('PLV (spikes and ASM)','fontsize',14)
-title('PLV between spikes and ASM','fontsize',16)
+tiledlayout('flow');
+nexttile;
+histogram(r_plv, 'FaceAlpha', 0.5,'Facecolor','black','EdgeColor', 'black', 'linewidth', 2);
+set(gca,'fontsize',14);
+ylabel('# patients')
+xlabel('correlation');
+title('PLV of ASM load and spike rate vs. ASM load')
 
+[~,p] = ttest(r_plv)
 
 
 %% some plotting code
@@ -686,8 +692,33 @@ title('PLV between spikes and ASM','fontsize',16)
 %     plot(zeros(length(inds),1)+(i)+jitter-mean(jitter),pt_data_clips.dosing_periods{inds},'.','Color',colors(i,:),'Markersize',25); hold on;
 % end
 
-
-
+%%
+% mean_plv = cellfun(@nanmedian,all_plv); % mean plv before seizure 
+% 
+% has_any_peak = false(1,length(ptIDs));
+% for i = 1:length(ptIDs)
+%     pt_inds = tbl.ptid == ptIDs(i);
+%     has_any_peak(i) = any(tbl.fooof_period_pre(pt_inds)~=0);
+% end
+% 
+% x = mean_plv((has_any_peak));
+% y = mean_plv(~(has_any_peak));
+% p = ranksum(x',y')
+% 
+% figure;
+% x1s = ones(length(x),1)+ rand(length(x),1);
+% x2s = 4*ones(length(y),1)+ rand(length(y),1);
+% plot(x1s,x,'o','markerfacecolor','k','MarkerEdgeColor','k','markersize',10)
+% hold on;
+% plot(x2s,y,'o','Markerfacecolor','r','MarkerEdgeColor','r','markersize',10)
+% xlim([0 6]);
+% xticks([1,4])
+% xticklabels({'has peak','no peak'})
+% set(gca, 'FontSize', 14);
+% ylabel('PLV (spikes and ASM)','fontsize',14)
+% title('PLV between spikes and ASM','fontsize',16)
+% 
+% 
 
 
 
