@@ -275,7 +275,7 @@ b= boxchart([low_asm_spikes high_asm_spikes]);
 hold on;
 plot([1 2],[low_asm_spikes(low_asm_spikes<high_asm_spikes) high_asm_spikes(low_asm_spikes<high_asm_spikes)],'.-','Color',[0 0 0 0.5], 'linewidth',1)
 plot([1 2],[low_asm_spikes(low_asm_spikes>high_asm_spikes) high_asm_spikes(low_asm_spikes>high_asm_spikes)],'.-','Color',[0 0 0 0.3], 'linewidth',1)
-%legend('N.S')
+legend('N.S')
 %xlim([0.5 2.5]);
 ylabel('norm spike rate','fontsize',14)
 %xticks([1,2])
@@ -291,7 +291,7 @@ nexttile([1 2]);
 % xlabel('ASM load');
 [sorted_data,I] = sort(r_spikes_asm_load(:,1));
 b1 = bar(sorted_data,'faceColor',[0.3010 0.7450 0.9330],'facealpha',0.1, 'edgecolor',[0.3010 0.7450 0.9330]);
-xlabel('patient #')
+
 hold on;
 sig_inds = find(r_spikes_asm_load(:,2) < 0.05);
 %plot(sig_inds, sorted_data(sig_inds),'*','markersize',5,'color',[0.2 0.2 0.2])
@@ -359,7 +359,7 @@ set(gca, 'FontSize', 12);
 set(gca,'box','off')
 title('Spikes by wakefulness','fontsize',14)
 p= signrank(awake_spikes_asm(:,1),sleep_spikes_asm(:,1));
-%legend(['p = ' num2str(p)],'location','best')
+legend(['p = ' num2str(p)],'location','best')
 
 
 nexttile();
@@ -375,7 +375,7 @@ set(gca, 'FontSize', 12);
 set(gca,'box','off')
 title('ASM load by wakefulness','fontsize',14)
 p = signrank(awake_spikes_asm(:,2),sleep_spikes_asm(:,2));
-%legend(['p = ' num2str(round(p*1000)./1000)],'location','best')
+legend(['p = ' num2str(round(p*1000)./1000)],'location','best')
 
 
 
