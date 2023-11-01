@@ -51,7 +51,7 @@ for x = 1:length(ptIDs)
         end
         soz_inds(bad_inds) =[];
 
-        if ~isempty(soz_inds) && use_all_elecs ==0
+        if ~isempty(soz_inds) || use_all_elecs ==1
             spike_rate = nansum(summ.spikes(soz_inds,:),1);
             
         else
@@ -66,7 +66,7 @@ for x = 1:length(ptIDs)
         
         file_ind = find(diff(summ.file_times) <0);
         if ~isempty(file_ind)
-            spike_file_dur(1:length(file_ind),x) =file_ind; %in blocks
+            spike_file_dur(1:length(file_ind),x) =[file_ind]; %in blocks
         end
 %     catch
 %         ptIDs(x)=NaN;

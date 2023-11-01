@@ -11,8 +11,11 @@ addpath([curr_path '/spikes-AED/ASM_spikes_analysis'])
 
 
 %load spike rate - new from 2/13/23 (samp/10min)
-load('spikes_rates_021323.mat');
-spikes_fname = 'spikes_rates_021323.mat';
+%load('spikes_rates_021323.mat');
+%spikes_fname = 'spikes_rates_021323.mat';
+spikes_fname = 'spikes_rates_SOZ_102723.mat';
+load(spikes_fname);
+
 cohort_info = readtable('HUP_implant_dates.xlsx');
 ptIDs = cohort_info.ptID;
 weights = cohort_info.weight_kg;
@@ -131,7 +134,7 @@ end
 
 %% create feature matrix - model w/ response of spike rate to see coefficients - lme?
 feat_names = [{'ptID'}, {'asm_load'}, {'t_last_sz'} {'t_implant'} {'awake'} {'spike_rate'}];
-features = cell(4,length(ptIDs));
+features = cell(6,length(ptIDs));
 for i = 1:length(ptIDs)
     % add ptID
     features{1,i} = i*ones(1,length(all_pts_drug_samp{i}));
@@ -144,7 +147,7 @@ for i = 1:length(ptIDs)
     % add sleep labels
      features{5,i} = sleep_labels{i};
     % add spike rate
-    features{6,i} = all_spike_rate{i}./max(all_spike_rate{i}); % normalize spike rate within each patient
+    features{6,i} = all_spike_rate{i};%./max(all_spike_rate{i}); % normalize spike rate within each patient
 end 
 
 drug_table = table();
@@ -378,14 +381,77 @@ p = signrank(awake_spikes_asm(:,2),sleep_spikes_asm(:,2));
 %legend(['p = ' num2str(round(p*1000)./1000)],'location','best')
 
 
+%% look at SOZ localization and spike changes 
 
+soz_info = readtable('Erin_szs_times.xlsx','VariableNamingRule','preserve','Sheet','SOZ');
+%%
+pt_soz = table();
+for i=1:(length(ptIDs))
+    pt_soz.soz_loc(i) = lower(soz_info.region(contains(soz_info.name,num2str(ptIDs(i)))));
+    pt_soz.temporal(i) = contains(pt_soz.soz_loc(i),'temporal');
+    pt_soz.laterality(i) = lower(soz_info.lateralization(contains(soz_info.name,num2str(ptIDs(i)))));
+end
 
+%r_spikes_asm_load
 
+% see if the relationship btwn spikes/ASMs un temporal patients is different than the rest 
+% try linear mixed model with only temporal patient
+% 
+% temp_pts = find(pt_soz.temporal==1);
+% 
+% feat_names = [{'ptID'}, {'asm_load'}, {'t_last_sz'} {'t_implant'} {'awake'} {'spike_rate'}];
+% features = cell(4,length(ptIDs));
+% for i = temp_pts'%1:length(ptIDs)
+%     % add ptID
+%     features{1,i} = i*ones(1,length(all_pts_drug_samp{i}));
+%     % add asm load 
+%     features{2,i} = sum(all_pts_drug_samp{i}); % add all drugs together - averaging with zero decreases level
+%     % add t_last_sz
+%     features{3,i} = all_t_last_sz{i};
+%     % add time since implant
+%     features{4,i} = all_t_implant{i};
+%     % add sleep labels
+%      features{5,i} = sleep_labels{i};
+%     % add spike rate
+%     features{6,i} = all_spike_rate{i}./max(all_spike_rate{i}); % normalize spike rate within each patient
+% end 
+% 
+% drug_table = table();
+% for i =1:length(feat_names)
+%     feat_name = feat_names{i};
+%     this_feat = features(i,:);
+%     this_feat = horzcat(this_feat{:});
+%     drug_table.(feat_name)=this_feat';
+% end
+% %drug_table.ptID = categorical(drug_table.ptID);
 
+%% fit linear mixed effects regression model 
+% modelspec = 'spike_rate~asm_load+t_last_sz+ awake + (1|ptID)';
+% mdl =fitglme(drug_table,modelspec) % 'Distribution','Poisson'
 
+pt_soz.r_spikes_asm = r_spikes_asm_load;
 
+figure;
+tiledlayout('flow')
+nexttile();
+boxchart(categorical(pt_soz.laterality), pt_soz.r_spikes_asm(:,1));
+ylabel('R');
+title('correlation by SOZ laterality')
+set(gca,'fontsize',14)
 
+nexttile();
+boxchart(categorical(pt_soz.soz_loc), pt_soz.r_spikes_asm(:,1));
+ylabel('R');
+title('correlation by SOZ localization')
+set(gca,'fontsize',14)
+%[p,tbl,stats]=kruskalwallis(pt_soz.r_spikes_asm(:,1),categorical(pt_soz.soz_loc));
 
+nexttile();
+boxchart(categorical(pt_soz.temporal), pt_soz.r_spikes_asm(:,1));
+ylabel('R');
+title('correlation: temporal vs other')
+set(gca,'fontsize',14)
+xticklabels([{'other'},{'temporal'}])
 
 %%
 % figure;
