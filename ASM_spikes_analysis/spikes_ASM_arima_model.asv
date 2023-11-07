@@ -9,8 +9,10 @@ addpath([curr_path '/spikes-AED/aed_dose_modeling'])
 tic
 
 
-%load spike rate and med data - new from 2/13/23 (samp/10min)
-spikes_fname = 'spikes_rates_021323.mat';
+%load spike rate and med data - spike sample every 10minutes
+spikes_fname = 'spikes_rates_SOZ_102723.mat';
+; % try only SOZ spikes
+%'spikes_rates_021323.mat';
 load(spikes_fname);
 
 cohort_info = readtable('HUP_implant_dates.xlsx');
@@ -24,110 +26,184 @@ load(meds_fname);
 [all_pts_drug_samp, all_pts_tvec] = get_samp_asm_spikes(meds_fname,spikes_fname,all_ieeg_offset, all_dose_curves, all_tHr,ptIDs);
 
 %% time series analysis - VAR model for granger causality, and cross correlation
-
+close all;
 all_gc_results = nan(1,length(ptIDs));
 xcorr_resuls = table();
+mse_null = nan(1,length(ptIDs));
+mse_asm_model = nan(1,length(ptIDs));
+residuals_asm =  nan(1,length(ptIDs));
+residuals_null =  nan(1,length(ptIDs));
+
+plot_figs = 0;
+save =0;
 
 row_ind_start =1;
-for ipt = 1%:length(ptIDs)
+for ipt = 1:length(ptIDs)
+
     ptID = ['HUP' num2str(ptIDs(ipt))];
-    % test for stationarity and make data stationary - spikes are generally
-    % stationary but asm load is not
-    asm_load = all_pts_drug_samp{ipt}; % averaged ASM load across medications
-    spikes = all_spike_rate{ipt}';
-    
+    asm_load = (sum(all_pts_drug_samp{ipt})); % averaged ASM load across medications
+
+    % try derivative of ASM load
+    %asm_load = [diff(asm_load) asm_load(end)-asm_load(end-1)];
+
+    spikes = (all_spike_rate{ipt}');
+
     [med_names,meds,~,~,~] = parse_MAR(ptID,all_meds);
     [taper_info,any_taper] = get_taper_info(meds, med_names);
-    % make the asm load stationary by taking the difference between points (derivative)
-    %asm_load_diff = [diff(asm_load); 0];% add a point at the beginning since it will be one less
 
     % need to normalize the spike rates
-    spikes_norm = spikes ./max(spikes);
-    
-    max_lags = 200;
-    r_maxes = zeros(1,height(asm_load));
-    lag_maxes =  zeros(1,height(asm_load));
-    med_tapered = zeros(1,height(asm_load));
-    for l = 1:height(asm_load)
-        [r,lags] = xcorr(spikes_norm,asm_load(l,:),'normalized');
-        [maxr, ind] = max(r);
-        r_maxes(l) = maxr;
-        lag_maxes(l) = lags(ind);
-        ind = contains({taper_info.med_name},med_names{l});
-        if sum(ind)>0
-            med_tapered(l) = taper_info(ind).tapered;
-        end
-    end
-
-    xcorr_results.r_max(row_ind_start:row_ind_start+height(asm_load)-1) = r_maxes';
-    xcorr_results.lags(row_ind_start:row_ind_start+height(asm_load)-1) = lag_maxes';
-    xcorr_results.med_name(row_ind_start:row_ind_start+height(asm_load)-1) = med_names;
-    xcorr_results.ptID(row_ind_start:row_ind_start+height(asm_load)-1) = ipt*ones(length(med_names),1);
-    xcorr_results.tapered(row_ind_start:row_ind_start+height(asm_load)-1) = med_tapered';
-    
-    row_ind_start = row_ind_start+height(asm_load);
-    % remove the time points with zeros spikes?
-    % zero_inds = spikes==0;
-    % asm_load(zero_inds)=[];
-    % spikes(zero_inds)=[];
-
-
-    % store pre-processed data into a table for model fitting and selection -
-    % do this for each patient - start with example 1
-
+    spikes_norm = (spikes./max(spikes));
     T = length(asm_load);
 
-    p = 6; %max lag is p=6 (1hr)
+    p = 6*1; %max lag is p=6 * (X-hrs)
     D = 0; %nonseasonality difference lags
-    q = 0; %moving average terms - 0 for now
+    q = 6; %moving average terms - 0 for now
 
-    sar_lags = 72; %144 lags is 24 hours - corresponds to sleep wake cycles 
-    P = sar_lags+p+1;
-    % Partition time base.
-    idxpre = 1:P;
-    idxest = (P + 1):T;
-    
-    % specify the SARIMAX model - ARIMA w/ periodicity and exogenous
-    % variables
-    Mdl = arima('ARLags',1:p,'D',D,'Seasonality',sar_lags);
-    %    Mdl = arima('ARLags',1:p,'D',D);
+    seasonality = 144; %144 lags is 24 hours - corresponds to sleep wake cycles
+    SARlags = 144;
+    P = seasonality+SARlags+p+1;
+
+    % specify the SARIMAX model - ARIMA w/ periodicity and exogenous variables
+    Mdl = arima('ARLags',1:p ,'D', D, 'Seasonality',seasonality,'SARLags',seasonality); % 'MALags',1:p, 'SARLags',seasonality, 'Seasonality',seasonality
+
+    if length(spikes_norm)/2 > P*2
+        % Fit ARIMA model to data.
+        split = P*2;
+        %round(0.6*length(spikes_norm));
+        Y0 = spikes_norm(1:P); % Presample
+        Y = spikes_norm(P+1:split);  % Estimation sample
+        try
+            EstMdl_asm = estimate(Mdl,Y,'Y0',Y0,'X',asm_load(1:split)');
+            EstMdl_spikes = estimate(Mdl,Y,'Y0',Y0);
+
+            % forcast spike rate - these should be the same for model with and without ASM load
+            forcast_period = split;% forcast P spike rate - 30hrs
+
+            %idxpre = 1:EstMdl_asm.P;
+            %idxest = (EstMdl_asm.P + 1):(length(spikes_norm)-forcast_period);
+
+            YF0 = spikes_norm(split:split+P); % allocate the presample for the forcast estimation
+            YF = forecast(EstMdl_asm,forcast_period,YF0);
+            YF_null = forecast(EstMdl_spikes,forcast_period,YF0);
+
+            if plot_figs
+                tiledlayout(3,1);
+                nexttile;
+                time = (1:length(spikes))./6;
+                plot(time,smoothdata(spikes_norm,'gaussian'),'Color',[.3 .3 .3 .5],'linewidth',1.5); hold on;
+                forecast_time = (split+1:split+split)./6;
+                plot(forecast_time,smoothdata(YF),'color',[0.6350 0.0780 0.1840 .5],'linewidth',2);
+                plot(forecast_time,smoothdata(YF_null),'color',[0.4660 0.6740 0.1880 .5],'linewidth',2);
+                legend('actual','forecasted with asm load','forecasted without asm load')
+                title(['Spikes: ' ptID])
+                set(gca,'fontsize',14);
+                xlabel('time (hrs)')
+
+                nexttile;
+                plot(time,asm_load,'Color','black','linewidth',1.5); hold on;
+                title(['ASM Load: ' ptID])
+                ylabel('normalized BPL')
+                xlabel('time (hrs)')
+                set(gca,'fontsize',14);
+
+                nexttile; % plot residuals
+                histogram(spikes_norm(round(forecast_time*6))-YF,'FaceAlpha', 0.5,'Facecolor',[0.6350 0.0780 0.1840],'EdgeColor', [0.6350 0.0780 0.1840], 'linewidth', 2); hold on;
+                histogram(spikes_norm(round(forecast_time*6))-YF_null,'FaceAlpha', 0.5,'Facecolor',[0.4660 0.6740 0.1880],'EdgeColor', [0.4660 0.6740 0.1880], 'linewidth', 2); hold on;
+
+                set(gca,'fontsize',14);
+                set(gca,'Box','off')
+                title('residuals (actual-forcasted)');
+                xline(0,'--','linewidth',2,'Color',[.5 .5 .5])
+                legend('model with ASM load','model w/out ASM load');
+            end
+
+            mse_null(ipt) = immse(spikes_norm(1:forcast_period),YF_null);
+            mse_asm_model(ipt) = immse(spikes_norm(1:forcast_period),YF);
+            residuals_asm(ipt) = nanmean(infer(EstMdl_asm,spikes_norm));
+            residuals_null(ipt) = nanmean(infer(EstMdl_spikes,spikes_norm));
 
 
-    % Fit ARIMA model to data.
-    Y0 = spikes_norm(idxpre); % Presample
-    Y = spikes_norm(idxest);  % Estimation sample
-    EstMdl_asm = estimate(Mdl,Y,'Y0',Y0,'X',asm_load(idxest));
-    EstMdl_spikes = estimate(Mdl,Y,'Y0',Y0);
-    
-    % forcast spike rate - these should be the same for model with and without ASM load
-    forcast_period = P;% forcast P spike rate - 30hrs
-    idxpre = 1:EstMdl_asm.P;
-    idxest = (EstMdl_asm.P + 1):(length(spikes_norm)-forcast_period);
+%             residuals_asm = infer(EstMdl_asm, spikes_norm);
+%             residuals_null = infer(EstMdl_spikes, spikes_norm);
+            
+%             figure;
+%             subplot(2, 2, 1);
+%             qqplot(residuals_asm);
+%             title('Q-Q Plot - Model with ASM Load');
+% 
+%             subplot(2, 2, 2);
+%             qqplot(residuals_null);
+%             title('Q-Q Plot - Null Model');
+% 
+%             % Autocorrelation plot for independence
+%             subplot(2, 2, 3);
+%             autocorr(residuals_asm);
+%             title('Autocorrelation Plot - Model with ASM Load');
+% 
+%             subplot(2, 2, 4);
+%             autocorr(residuals_null);
+%             title('Autocorrelation Plot - Null Model');
 
-    YF0 = spikes_norm(idxest(end-P+1:end)); % allocate the presample for the forcast estimation
-    YF = forecast(EstMdl_asm,forcast_period,YF0);
-    YF_null = forecast(EstMdl_spikes,forcast_period,YF0);
-   
-    
-    figure;
-    plot(spikes_norm,'b'); hold on;
-    forecast_time = (length(spikes_norm)-forcast_period+1):length(spikes_norm);
-    plot(forecast_time,YF,'r');
-    plot(forecast_time,YF_null,'g');
-    legend('actual','forecasted with asm load','forecasted without asm load')
-    
-    figure; % plot residuals 
-    histogram(spikes_norm(forecast_time)-YF); hold on;
-    histogram(spikes_norm(forecast_time)-YF_null); hold on;
 
-    % need a way to test if the exogenous variable terms make the model
-    % better - esitmagte with/without ASM load and then forcast and check
-    % residuals 
+        catch ME
+            disp(['error with ' ptID ': ' ME.message])
+        end
+
+    end
 end
 
+%%
+figure;
+tiledlayout('flow');
+nexttile;
+histogram(mse_asm_model,'FaceAlpha', 0.5,'Facecolor','black','EdgeColor', 'black', 'linewidth', 2); hold on;
+histogram(mse_null,'FaceAlpha', 0.5,'Facecolor','red','EdgeColor', 'red', 'linewidth', 2); hold on;
 
-% can we conduct a test across all patients to see if this is generally
-% true?
+set(gca,'fontsize',14);
+title('residuals (actual-forcasted)');
+legend('model with ASM load','model w/out ASM load');
+ylabel('P');
+xlabel('MSE')
 
-%% SARIMAX - seasonal arima model with exogenous variable
+figure;
+plot(mse_asm_model,mse_null,'.',MarkerSize=20)
+axis square;
+xlabel('MSE asm model');
+ylabel('MSE null model')
+hold on;
+plot([0,2],[0,2])
+
+%% save?
+
+if save
+    fname = 'ARIMA_results_110623';
+    save(['/Volumes/users/nghosn3/Pioneer/DATA/mat files/' fname '.mat'])
+end
+
+%% 
+ %     max_lags = 200;
+    %     r_maxes = zeros(1,height(asm_load));
+    %     lag_maxes =  zeros(1,height(asm_load));
+    %     med_tapered = zeros(1,height(asm_load));
+    %     for l = 1:height(asm_load)
+    %         [r,lags] = xcorr(spikes_norm,asm_load(l,:),'normalized');
+    %         [maxr, ind] = max(r);
+    %         r_maxes(l) = maxr;
+    %         lag_maxes(l) = lags(ind);
+    %         ind = contains({taper_info.med_name},med_names{l});
+    %         if sum(ind)>0
+    %             med_tapered(l) = taper_info(ind).tapered;
+    %         end
+    %     end
+    %
+    %     xcorr_results.r_max(row_ind_start:row_ind_start+height(asm_load)-1) = r_maxes';
+    %     xcorr_results.lags(row_ind_start:row_ind_start+height(asm_load)-1) = lag_maxes';
+    %     xcorr_results.med_name(row_ind_start:row_ind_start+height(asm_load)-1) = med_names;
+    %     xcorr_results.ptID(row_ind_start:row_ind_start+height(asm_load)-1) = ipt*ones(length(med_names),1);
+    %     xcorr_results.tapered(row_ind_start:row_ind_start+height(asm_load)-1) = med_tapered';
+    %
+    %     row_ind_start = row_ind_start+height(asm_load);
+    %
+    % store pre-processed data into a table for model fitting and selection -
+    % do this for each patient - start with example 1
 
