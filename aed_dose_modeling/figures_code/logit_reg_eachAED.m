@@ -29,7 +29,7 @@ if exclude_ativan
 end
 
 % make matrix with all variables (levels for each drug)
-num_feats=length(all_medications)+2;
+num_feats=length(all_medications)+3;
 sz=num_feats;
 features = cell(num_feats,length(ptIDs));
 winLen =120;
@@ -124,7 +124,7 @@ med_feats(exclude_meds,:)=[];
 
 %% run logistic regression
 features = med_feats; %[all_feats; all_pt_bins; all_sz_bins];
-feat_names = [top_meds; {'ptID'}; {'seizure'}];
+feat_names = [top_meds; {'ptID'}; {'seizure'} {'spikes'}];
 drug_table = table();
 for i =1:length(feat_names)
     feat_name = feat_names{i};
