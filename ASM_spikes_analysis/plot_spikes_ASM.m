@@ -26,7 +26,7 @@ load('MAR_032122.mat')
 
 [all_dose_curves,all_tHr,ptIDs,all_med_names,all_ieeg_offset,max_dur,emu_dur] = get_aed_curve_kg(ptIDs,weights);
 %%
-for ipt = 8%1:length(ptIDs)
+for ipt = 79%1:length(ptIDs)
     % patient medication administration
     figure;
     ptID =  ['HUP' num2str(ptIDs(ipt))];
@@ -52,6 +52,7 @@ for ipt = 8%1:length(ptIDs)
     time =time +offsets(1);
     plot(time./3600,spike_rate,'k','linewidth',.5); 
     %xlim([0 emu_dur(ipt)]);
+    xticks([0:20:time(end)])
     ylabel('spikes/10min'); xlabel('time (hrs)')
     title([ptID ': Spike rate and medication dose over EMU stay']);
     xlim([0 emu_dur(ipt)+24]);
@@ -71,7 +72,8 @@ for ipt = 8%1:length(ptIDs)
             xline(seizure_times(j,1),'--r','linewidth',2);hold on;
         end
     end
-    
+    set(gca,'Box','off','fontsize',14);
+   
     % plot dose curve
     subplot(2,1,2)
     %plot(0,0);
