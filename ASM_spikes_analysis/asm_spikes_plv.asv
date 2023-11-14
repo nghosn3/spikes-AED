@@ -56,15 +56,15 @@ title('PLV of ASM load and spike rate vs. ASM load')
 
 tiledlayout('flow')
 [sorted_plv,inds] = sort(r_plv);
-bar(sorted_plv,'faceColor',[0.5 0.5 0.5],'facealpha',0.1, 'edgecolor',[0.5 0.5 0.5],'linewidth',2);
+bar(sorted_plv,'faceColor',[0.3010 0.7450 0.9330],'facealpha',0.1, 'edgecolor',[0.3010 0.7450 0.9330]);
 xticks(1:length(ptIDs))
 xticklabels(ptIDs(inds))
 set(gca,'box','off','fontsize',14)
 ylabel('R')
 xtickangle(60)
-set(gca, 'FontSize', 14,'linewidth',2);
+set(gca, 'FontSize', 12);
 set(gca, 'box', 'off')
-title('ASM load vs. PLV(asm load, spikes)','fontsize',14)
+title('ASM ','fontsize',14)
 
 
 

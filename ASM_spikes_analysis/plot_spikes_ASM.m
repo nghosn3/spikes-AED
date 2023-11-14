@@ -101,6 +101,8 @@ for ipt = 79%1:length(ptIDs)
     
     xlim([0 emu_dur(ipt)+24]);
     legend(all_med_names{ipt}');
+    set(gca,'Box','off','fontsize',14);
+
     
 end
 
