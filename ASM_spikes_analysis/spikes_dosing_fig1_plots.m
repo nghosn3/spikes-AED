@@ -3,7 +3,7 @@
 close all;clear;
 cd('/Volumes/users/nghosn3/Pioneer')
 curr_path = pwd;
-addpath([curr_path '/DATA'])
+addpath([curr_path '/DATA'])print -painters -depsc output.eps
 %addpath([curr_path '/spikes-AED/aed_dose_modeling/figures_code'])
 addpath([curr_path '/spikes-AED/aed_dose_modeling'])
 addpath([curr_path '/spikes-AED/helper code'])

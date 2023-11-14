@@ -44,6 +44,7 @@ for ipt =1:length(ptIDs)
     drug_sum = sum(asm_curves);
     med_names = all_med_names{ipt};
 
+
     tvec = all_pts_tvec{ipt}{:};
     spikes = (all_spike_rate{ipt})./max((all_spike_rate{ipt}));
     [~,meds,~,~,~] = parse_MAR(ptID,all_meds);
@@ -133,18 +134,20 @@ for i = 1:length(spike_trials)
 %                 plot(x',trials);
 %                 set(gca, 'box', 'off')
 %                 hold on;
-%                 plot(x',mean(trials),'k','linewidth',1)
+%                 
 %                 %title(['Day spike rate: example HUP' num2str(ptIDs(i))])
 %                 title('Spike rate','fontsize',14)
 %                 xline(x(x==0),'--r','linewidth',1)
 
                 nexttile;
-                plot(x,asm_trials); hold on;
+                plot(x,trials,'linewidth',1); hold on;
+                plot(x',mean(trials),'k','linewidth',1.5)
                 xticks([-4,-2,0,2,4])
-                set(gca, 'box', 'off')
+                set(gca, 'box', 'off','fontsize',14)
                 xline(0,'--r','linewidth',1)
                 xlabel('time (hrs)','fontsize',14)
-                title('ASM administrations','fontsize',14)
+                title('Spike rate','fontsize',14)
+                ylabel('spike rate')
 
 
             end
@@ -176,7 +179,7 @@ stdSignal = nanstd(all_trials, 1);
 
 % Calculate the confidence interval bounds
 alpha = 0.05;  % Significance level (1 - confidence levelc)
-n = size(all_trials_day, 1);
+n = size(all_trials, 1);
 t = tinv(1 - alpha/2, n - 1);  % t-value for two-tailed t-distribution
 ciLower = meanSignal - t * stdSignal / sqrt(n);
 ciUpper = meanSignal + t * stdSignal / sqrt(n);
