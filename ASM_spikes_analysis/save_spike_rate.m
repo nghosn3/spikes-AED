@@ -27,7 +27,7 @@ all_spike_times = cell(1,length(ptIDs));
 file_inds = cell(1,length(ptIDs));
 spike_file_dur = zeros(3,length(ptIDs));
 
-for x = 1:length(ptIDs)
+for x = 26%1:length(ptIDs)
     
     ptID = ['HUP' num2str(ptIDs(x))];
     %load the spike data

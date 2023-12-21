@@ -3,7 +3,7 @@
 close all;clear;
 cd('/Volumes/users/nghosn3/Pioneer')
 curr_path = pwd;
-addpath([curr_path '/DATA'])print -painters -depsc output.eps
+addpath([curr_path '/DATA'])%print -painters -depsc output.eps
 %addpath([curr_path '/spikes-AED/aed_dose_modeling/figures_code'])
 addpath([curr_path '/spikes-AED/aed_dose_modeling'])
 addpath([curr_path '/spikes-AED/helper code'])
@@ -283,7 +283,16 @@ ylabel('# patients')
 xlabel('correlation');
 title('PLV and ASM load')
 
-[~,p] = ttest(r_plv);
+[~,p_rplv] = ttest(r_plv);
+
+%% post hoc testing to explain plv results
+
+load('fooof_results_091223.mat')
+
+has_pos_plv = r_plv >0;
+conttbl = crosstab(has_12hr_peak,has_pos_plv);
+[h,p,stats] = fishertest(conttbl)
+
 
 
 

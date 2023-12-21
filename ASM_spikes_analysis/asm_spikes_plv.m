@@ -29,7 +29,7 @@ load('fooof_results_091223.mat')
 r_plv = nan(length(ptIDs),1);
 
 tiledlayout('flow')
-for i = 1:length(ptIDs)
+for i = 75%1:length(ptIDs)
     plv = all_plv{i};
     nan_inds =isnan(plv);
     plv(nan_inds)=[];

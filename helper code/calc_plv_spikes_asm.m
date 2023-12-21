@@ -16,12 +16,15 @@ for ipt = 1:length(ptIDs)
    
 
     %only use data up to first sz -  check if enough data before first seizure, otherwise exclude.
-    sz_inds = get_spike_seizure_inds(ptID,file_inds{ipt});
+    %sz_inds = get_spike_seizure_inds(ptID,file_inds{ipt});
     time_thresh = 6*24*1; % two days of data
-    sz_inds = length(asm_load);
-    if sz_inds(1) > time_thresh
-        asm_load = asm_load(1:sz_inds(1));
-        spikes = spikes(1:sz_inds(1));
+    %sz_inds = length(asm_load);
+    [~,sz_inds] = findpeaks(-asm_load);
+    stop = sz_inds(end);% when the asm dosing ceases
+
+    if stop > time_thresh
+        asm_load = asm_load(1:stop);
+        spikes = spikes(1:stop);
         signal1 = spikes;
         signal2 = asm_load;
 
