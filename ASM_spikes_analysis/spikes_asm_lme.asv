@@ -145,7 +145,7 @@ for i = 1:length(ptIDs)
     % add time since implant
     features{4,i} = all_t_implant{i};
     % add sleep labels
-     features{5,i} = sleep_labels{i};
+    features{5,i} = sleep_labels{i};
     % add spike rate
     features{6,i} = all_spike_rate{i};%./max(all_spike_rate{i}); % normalize spike rate within each patient
 end 
@@ -158,10 +158,11 @@ for i =1:length(feat_names)
     drug_table.(feat_name)=this_feat';
 end
 %drug_table.ptID = categorical(drug_table.ptID);
+disp('done')
 
 %% fit linear mixed effects regression model 
-modelspec = 'spike_rate~asm_load+t_last_sz+ awake + (1|ptID)';
-mdl =fitglme(drug_table,modelspec) % 'Distribution','Poisson'
+modelspec = 'spike_rate~asm_load+t_last_sz+ awake + (1|ptID) '; % random slope for time since last seizure? different avalanche effects?
+mdl =fitglme(drug_table,modelspec) % 'Distribution','Poispson'
 
 %% compare spike rate in low and high ASM states before seizures 
 
@@ -453,7 +454,45 @@ title('correlation: temporal vs other')
 set(gca,'fontsize',14)
 xticklabels([{'other'},{'temporal'}])
 
-%%
+%% compare number of ASMs, 
+
+
+
+% create feature matrix - model w/ response of spike rate to see coefficients - lme?
+feat_names = [{'ptID'},{'num_asms'}, {'laterality'}, {'localization'}, {'baseline_spike_rate'}];
+features = cell(6,length(ptIDs));
+for i = 1:length(ptIDs)
+    % add ptID
+    features{1,i} = i;
+    % add asm load 
+    features{2,i} = height(all_pts_drug_samp{i}); % add all drugs together - averaging with zero decreases level
+    % add t_last_sz
+    features{3,i} = categorical(pt_soz.laterality(i));
+    % add time since implant
+    features{4,i} = categorical(pt_soz.soz_loc(i));
+    % add sleep labels
+    features{5,i} = median(all_spike_rate{i});
+    % add spike rate
+end 
+
+drug_table = table();
+for i =1:length(feat_names)
+    feat_name = feat_names{i};
+    this_feat = features(i,:);
+    this_feat = horzcat(this_feat{:});
+    drug_table.(feat_name)=this_feat';
+end
+%drug_table.ptID = categorical(drug_table.ptID);
+
+%% fit linear mixed effects regression model 
+modelspec = 'baseline_spike_rate~num_asms+laterality+ localization + (1|ptID)';
+modelspec = 'baseline_spike_rate~  1 +  num_asms+laterality+ localization + (1|ptID) + (localization|ptID)';
+
+
+mdl =fitglme(drug_table,modelspec) % 'Distribution','Poisson'
+
+
+
 % figure;
 % subplot(1,2,1)
 % early_asm_states = [asm_state{early_sz}];

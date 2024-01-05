@@ -26,6 +26,8 @@ load(meds_fname)
 %% curate table with ptIDs and sort
 close all;
 
+plot_dist =1;
+
 spikes_seqs = table();
 seq_ptids = [];
 tiledlayout('flow');
@@ -75,51 +77,72 @@ for i = 1:length(ptIDs)
             low_load_bounds = asm_tvec(low_load_bounds);
 
             % generate distributions for spike sequences in high and low ASM load days
-
-            % make probability plot for high ASM load day
-            nexttile();
+            
+            % high asm load
             high_asm_inds = peak_times>=high_load_bounds(1) & peak_times<=high_load_bounds(2);
             sizes = peak_sizes(high_asm_inds);
-%             h = histogram((sizes),'normalization','probability');
-%             prob_vals = h.Values;
-%             cas_size = h.BinEdges;
+
             [prob_vals,cas_size] = histcounts(sizes,'normalization','probability');
             cas_size = cas_size(1:end-1) + diff(cas_size) / 2;
+            
+            if plot_dist
+                nexttile();
+                loglog(cas_size,prob_vals,'linewidth',2,'Color','blue')
+                title(ptID);
+                xlabel('sequence size (samples)');
+                ylabel('P(size)');
+                set(gca,'fontsize',14)
+            end
 
-            loglog(cas_size,prob_vals,'linewidth',2,'Color','blue')
-            title(ptID);
-            xlabel('sequence size (samples)');
-            ylabel('P(size)');
-            set(gca,'fontsize',14)
+            sys_size = max(pt_info.channel_index);
+            LCFs(i,1)= (sum(prob_vals(cas_size>(.5*sys_size)))); % high ASM load
 
+            % low asm state
             hold on;
             low_asm_inds = peak_times>=low_load_bounds(1) & peak_times<=low_load_bounds(2);
             sizes = peak_sizes(low_asm_inds);
-%             h = histogram(sizes,'normalization','probability');
-%             prob_vals = h.Values;
-%             cas_size = h.BinEdges;
+
             [prob_vals,cas_size] = histcounts(sizes,'normalization','probability');
             cas_size = cas_size(1:end-1) + diff(cas_size) / 2;
-            loglog(cas_size,prob_vals,'linewidth',2,'Color','red')
-
+            
+            if plot_dist
+                loglog(cas_size,prob_vals,'linewidth',2,'Color','red')
+            end
             %legend('highest ASM load day','lowest ASM load day')
 
-            %  calculate LCF for high and low loads
-            sys_size = max(pt_info.channel_index);
-            LCFs(i,1)=[]; % high ASM load
-            LCFs(i,2)=[]; % low ASM load
-
-
-
-
+            LCFs(i,2)=(sum(prob_vals(cas_size>(.5*sys_size)))); % low ASM load
 
 
         end
     end
 end
 
+%% highest day vs lowest day
 
-% get average ASM level during each spike sequence (first peak index to last peak index)
+figure;
+log_low_lcf =log(LCFs(:,2));
+log_high_lcf =log(LCFs(:,1));
+
+plot(log_high_lcf,log_low_lcf,'.','markersize',10);
+axis square; hold on;
+xlim([-7 -1]); ylim([-7 -1]); 
+plot([-7 -1],[-7 -1],'linewidth',2)
+xlabel('high asm load');
+ylabel('low asm load');
+title('Change in LCF fraction during high/low ASM load');
+set(gca,'fontsize',14)
+
+nan_inds = (log_high_lcf) ==-Inf;
+log_high_lcf(nan_inds,:)=[];
+log_low_lcf(nan_inds,:)=[];
+nan_inds = (log_low_lcf) ==-Inf;
+
+log_low_lcf(nan_inds,:)=[];
+log_high_lcf(nan_inds,:)=[];
+
+signrank(log_low_lcf,log_high_lcf) 
+
+%% get average ASM level during each spike sequence (first peak index to last peak index)
 
 
 

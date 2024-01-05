@@ -57,7 +57,7 @@ for ipt =1:length(ptIDs)
     numDates = length(drug_sum);  % Change this to the desired number of dates
     dateVector = linspace(startDate, startDate+duration, numDates);
 
-    all_tod_labels =  dateVector.Hour > -1;%dateVector.Hour > 5 & dateVector.Hour <19; %label of 1 means dayime
+    all_tod_labels = dateVector.Hour > 5 & dateVector.Hour <19; %label of 1 means dayime
 
 
     admin_times = admin_times(:,1:max_admins);
@@ -260,10 +260,16 @@ set(gca,'fontsize',14)
 
 
 % make a plot comparing the pre and post admin spike rate for day and night. color code by mean asm load
+%%
+ % make pre and post asm spikes be a whole waveform and subtract them
+
 
 tbl_day = table;
 tbl_day.pre_asm_spikes = mean(all_trials_day(:,1:end/2),2); % mean of the pre period for each trial - day
 tbl_day.post_asm_spikes = mean(all_trials_day(:,end/2+1:end),2); % mean of the post period for each trial - day 
+tbl_day.change_spike_rate = mean((all_trials_day(:,end/2+1:end)-all_trials_day(:,1:end/2)),2);
+%tbl_day.change_slope = mean(diff(all_trials_day(:,end/2+1:end))-diff(all_trials_day(:,1:end/2)),2);
+
 tbl_day.asm_load = mean(all_asms_day(:,end/2+1:end),2);
 tbl_day.ptID = all_ptids_day;
 tbl_day.label(:) = 1; % 1 for day
@@ -276,9 +282,9 @@ tbl_day.post_asm_spikes(day_height+1:total_height) = mean(all_trials_night(:,end
 tbl_day.asm_load(day_height+1:total_height) = mean(all_asms_night(:,end/2+1:end),2);
 tbl_day.ptID(day_height+1:total_height) = all_ptids_night;
 tbl_day.label(day_height+1:total_height) = 0; % 1 for day
+tbl_day.change_spike_rate(day_height+1:total_height) = mean((all_trials_night(:,end/2+1:end)-all_trials_night(:,1:end/2)),2);
 
-% chnage in spike rate
-tbl_day.change_spike_rate = tbl_day.post_asm_spikes - tbl_day.pre_asm_spikes;% should be a negative number if higher before admin
+
 
 nexttile();
 x = tbl_day.pre_asm_spikes;
@@ -357,6 +363,6 @@ title('change after ASM administration','fontsize',14);
 xlabel('change in spike rate (z-score)','fontsize',12);
 ylabel('density','fontsize',12)
 
-
+[h,p]=ttest(tbl_day.change_spike_rate)
 
 
